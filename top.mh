@@ -9,34 +9,19 @@ TARGET_ARCH=x32
 !ENDIF
 !ENDIF
 
-#Setup mode, default DEBUG=1
-DEBUG=1
-!IFDEF RELEASE
-!IF "$(RELEASE)" != "0"
-DEBUG=0
-!ENDIF
-!IF "$(RELEASE)" == "0"
-DEBUG=1
-!ENDIF
-!ELSE
-DEBUG=1
-!ENDIF
-
 
 #Path of project
-CODE_DIR=src
 GEN_DIR=gen
 BUILD_DIR=build
 
-#Root of the environment
-ENV_DIR=C:\Program^ Files^ (x86)
 
 #Windows SDK
 WSDK_VERS=10
 WSDK_BUILD=19041
-WSDK_FULLBUILD=$(WSDK_VERS).0.$(WSDK_BUILD).0
-WSDK_DIR=$(ENV_DIR)\Windows^ Kits\$(WSDK_VERS)
+WSDK_DIR=C:\Program^ Files^ (x86)\Windows^ Kits\$(WSDK_VERS)
 
+WSDK_FULLBUILD=$(WSDK_VERS).0.$(WSDK_BUILD).0
+WSDK_INC_SHARED="$(WSDK_DIR)"\Include\$(WSDK_FULLBUILD)\shared
 WSDK_INC_UCRT="$(WSDK_DIR)"\Include\$(WSDK_FULLBUILD)\ucrt
 WSDK_INC_UM="$(WSDK_DIR)"\Include\$(WSDK_FULLBUILD)\um
 WSDK_LIB_UCRT="$(WSDK_DIR)"\Lib\$(WSDK_FULLBUILD)\ucrt\$(TARGET_ARCH)
@@ -44,9 +29,9 @@ WSDK_LIB_UM="$(WSDK_DIR)"\Lib\$(WSDK_FULLBUILD)\um\$(TARGET_ARCH)
 WSDK_BIN="$(WSDK_DIR)"\bin\$(WSDK_FULLBUILD)\$(TARGET_ARCH)
 
 #Visual Studio
-VS_VERS=2019
-MSVC_VERS=14.28.29910
-MSVC_DIR=$(ENV_DIR)\Microsoft^ Visual^ Studio\$(VS_VERS)\Community\VC\Tools\MSVC\$(MSVC_VERS)
+VS_VERS=2022
+MSVC_VERS=14.30.30705
+MSVC_DIR=C:\Program^ Files\Microsoft^ Visual^ Studio\$(VS_VERS)\Community\VC\Tools\MSVC\$(MSVC_VERS)
 
 MSVC_INC="$(MSVC_DIR)"\include
 MSVC_LIB="$(MSVC_DIR)"\lib\$(TARGET_ARCH)
@@ -68,14 +53,30 @@ LIB_PATH=\
 INCLUDE_PATH=\
     /I$(MSVC_INC)\
     /I$(WSDK_INC_UCRT)\
-    /I$(WSDK_INC_UM)
+    /I$(WSDK_INC_UM)\
+    /I$(WSDK_INC_SHARED)
 
 CLOPT=/nologo /c /MP /W4 /EHsc /Ox
 CLDEF=/D UNICODE /D _UNICODE
 LDOPT=/nologo /INCREMENTAL:NO
 
+
+#Setup mode, default DEBUG=1
+DEBUG=1
+!IFDEF RELEASE
+!IF "$(RELEASE)" != "0"
+DEBUG=0
+!ENDIF
+!IF "$(RELEASE)" == "0"
+DEBUG=1
+!ENDIF
+!ELSE
+DEBUG=1
+!ENDIF
+
+
 !IF "$(DEBUG)" == "1"
-CLOPT=$(CLOPT) /MTd
+CLOPT=$(CLOPT) /MDd
 CLDEF=$(CLCLDEFOPT) /D _DEBUG /D DEBUG
 LDOPT=$(LDOPT) /DEBUG:FASTLINK
 !ELSE

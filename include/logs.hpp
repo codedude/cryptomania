@@ -10,7 +10,7 @@
 #ifndef DEV_LOG_HPP
 #define DEV_LOG_HPP
 
-#ifdef DLOG
+#ifdef DEBUG
 #define TRACE_START()       \
     {                       \
         Log::get().start(); \
@@ -74,10 +74,27 @@
 #define TRACE_MEM(...)
 #endif
 
-#ifdef DLOG
+#ifdef DEBUG
 
 #include <iostream>
 #include <sstream>
+
+#ifdef _WIN32
+#include <windows.h>
+
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#define DISABLE_NEWLINE_AUTO_RETURN  0x0008
+
+static void _activateVirtualTerminal()
+{
+    HANDLE handleOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD consoleMode;
+    GetConsoleMode(handleOut, &consoleMode);
+    consoleMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    consoleMode |= DISABLE_NEWLINE_AUTO_RETURN;
+    SetConsoleMode(handleOut, consoleMode);
+}
+#endif
 
 /**
  * This is a singleton
@@ -85,17 +102,17 @@
 class Log
 {
 public:
-    static constexpr const char *logfile = "logs.txt";
-    static constexpr const char *no_header = "";
-    static constexpr const char *error_header = "[ERROR]";
-    static constexpr const char *warning_header = "[WARN]";
-    static constexpr const char *info_header = "[INFO]";
-    static constexpr const char *error_color = "\033[31m";
-    static constexpr const char *warning_color = "\033[35m";
-    static constexpr const char *info_color = "\033[32m";
-    static constexpr const char *reset_color = "\033[0m";
+    static constexpr const char* logfile = "logs.txt";
+    static constexpr const char* no_header = "";
+    static constexpr const char* error_header = "[ERROR]";
+    static constexpr const char* warning_header = "[WARN]";
+    static constexpr const char* info_header = "[INFO]";
+    static constexpr const char* error_color = "\033[31m";
+    static constexpr const char* warning_color = "\033[35m";
+    static constexpr const char* info_color = "\033[32m";
+    static constexpr const char* reset_color = "\033[0m";
 
-    static Log &get()
+    static Log& get()
     {
         static Log m_singleton;
         return m_singleton;
@@ -135,29 +152,40 @@ private:
     bool m_color;
     bool m_nl;
 
-    Log() : m_enable(true), m_color(true), m_nl(true) {} ///< Constructor
+    Log() : m_enable(true), m_color(true), m_nl(true) {
+#ifdef _WIN32
+        _activateVirtualTerminal();
+#endif
+    } ///< Constructor
     ~Log() = default;                                    ///< Default destructor
-    Log(Log const &) = delete;                           ///< Copy constructor
-    Log(Log &&) = delete;                                ///< Move constructor
-    Log &operator=(Log const &) = delete;                ///< Copy assignment
-    Log &operator=(Log &&) = delete;                     ///< Move assignment
+    Log(Log const&) = delete;                           ///< Copy constructor
+    Log(Log&&) = delete;                                ///< Move constructor
+    Log& operator=(Log const&) = delete;                ///< Copy assignment
+    Log& operator=(Log&&) = delete;                     ///< Move assignment
 
     template <typename... Args>
-    void print(const char *p_header, const char *p_color, Args &&...args) const
+    void print(const char* p_header, const char* p_color, Args &&...args) const
     {
+#if defined(_WIN32)
+        static const HANDLE handle = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
         if (!m_enable)
             return;
         std::ostringstream msg_tt;
         if (p_header != nullptr)
         {
             if (m_color)
+            {
                 msg_tt << p_color;
+            }
             msg_tt << p_header;
             if (m_color)
+            {
                 msg_tt << reset_color;
+            }
             msg_tt << "\t";
         }
-        int unpack[]{0, (msg_tt << args, 0)...}; // Side effect
+        int unpack[]{ 0, (msg_tt << args, 0)... }; // Side effect
         (void)unpack;                            // Avoid -Wunused warnings
         if (m_nl)
             std::cout << msg_tt.str() << std::endl;
