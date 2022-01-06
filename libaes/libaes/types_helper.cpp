@@ -1,9 +1,27 @@
 #include <iostream>
 #include <cstring>
 
-#include <boost/format.hpp>
+#include <libaes/types.hpp>
 
-#include "types.hpp"
+int bitInByte(int bits)
+{
+    return bits / 8 + (bits % 8 == 0 ? 0 : 1);
+}
+
+int byteInBit(int bytes)
+{
+    return bytes * 8;
+}
+
+int bitInWord(int bits)
+{
+    return bits / 32 + (bits % 32 == 0 ? 0 : 1);
+}
+
+word_t bytesToWord(byte_t b1, byte_t b2, byte_t b3, byte_t b4)
+{
+    return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4;
+}
 
 void qwordToByteArray(qword_t input, byte_t* buffer)
 {
@@ -38,14 +56,4 @@ std::string wordToHexString(word_t word)
     char buff[9];
     sprintf(buff, "%08X", word);
     return std::string(buff);
-}
-
-byte_t* stringToBytes(const std::string& str)
-{
-    byte_t* buffer = new byte_t[str.size() / 2];
-    for (int i = 0; i < (int)str.size(); i += 2)
-    {
-        buffer[i / 2] = (std::stoi(std::string(1, str[i]), nullptr, 16) << 4) | (std::stoi(std::string(1, str[i + 1]), nullptr, 16));
-    }
-    return buffer;
 }

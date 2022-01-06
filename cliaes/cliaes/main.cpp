@@ -3,11 +3,10 @@
 
 #include <boost/program_options.hpp>
 
-#include "logs.hpp"
-#include "types.hpp"
-#include "loadData.hpp"
-#include "random_generator.hpp"
-#include "aes_core.hpp"
+#include <utility/logs.hpp>
+#include <cliaes/loadData.hpp>
+#include <cliaes/random_generator.hpp>
+#include <libaes/libaes.hpp>
 
 struct Args
 {
@@ -19,6 +18,7 @@ struct Args
 };
 
 bool getArgs(int argc, char** argv, Args& args);
+byte_t* stringToBytes(const std::string& str);
 
 int main(int argc, char** argv)
 {
@@ -182,4 +182,14 @@ bool getArgs(int argc, char** argv, Args& args)
     }
 
     return true;
+}
+
+byte_t* stringToBytes(const std::string& str)
+{
+    byte_t* buffer = new byte_t[str.size() / 2];
+    for (int i = 0; i < (int)str.size(); i += 2)
+    {
+        buffer[i / 2] = (std::stoi(std::string(1, str[i]), nullptr, 16) << 4) | (std::stoi(std::string(1, str[i + 1]), nullptr, 16));
+    }
+    return buffer;
 }

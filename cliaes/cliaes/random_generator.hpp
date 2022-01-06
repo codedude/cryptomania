@@ -1,10 +1,10 @@
-#ifndef RNG_RANDOM_GENERATOR
-#define RNG_RANDOM_GENERATOR
+#ifndef CLIAES_RANDOM_GENERATOR_HPP
+#define CLIAES_RANDOM_GENERATOR_HPP
 
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/random.hpp>
 
-#include "types.hpp"
+#include <libaes/types.hpp>
 
 namespace RNG
 {
