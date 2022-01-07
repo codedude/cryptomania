@@ -16,7 +16,7 @@ static inline void incCounter(qword_t& counter)
  * ECB
  ****************************/
 
-bool AES::ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize)
+bool AES::ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
     byte_t state[AES::BLOCKSIZE];
@@ -41,7 +41,7 @@ bool AES::ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize)
     return true;
 }
 
-bool AES::ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize)
+bool AES::ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
     byte_t state[AES::BLOCKSIZE];
@@ -69,14 +69,14 @@ bool AES::ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize)
 /*****************************
  * CBC
  ****************************/
-bool AES::cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize)
+bool AES::cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
     byte_t state[AES::BLOCKSIZE];
     byte_t nonceBlock[AES::BLOCKSIZE];
     qword_t nonce;
 
-    nonce = byteArrayToQword(iv, AES::BLOCKSIZE);
+    nonce = byteArrayToQword(this->iv, AES::BLOCKSIZE);
 
     // Save init state to store at end of message
     byte_t nonceBuffer[AES::BLOCKSIZE];
@@ -108,7 +108,7 @@ bool AES::cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, c
     return true;
 }
 
-bool AES::cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize)
+bool AES::cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
     byte_t state[AES::BLOCKSIZE];
@@ -147,13 +147,13 @@ bool AES::cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, d
 /*****************************
  * CTR
  ****************************/
-bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize)
+bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
     byte_t state[AES::BLOCKSIZE];
     qword_t counter;
 
-    counter = byteArrayToQword(iv, ivSize);
+    counter = byteArrayToQword(this->iv, this->keySize);
 
     // Save init state to store at end of message
     byte_t counterBuffer[AES::BLOCKSIZE];
@@ -194,7 +194,7 @@ bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, c
     return true;
 }
 
-bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize)
+bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
     byte_t state[AES::BLOCKSIZE];
@@ -232,20 +232,6 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, d
             blockSize = lastBlock;
         offsetDataIn += AES::BLOCKSIZE;
     }
-
-    return true;
-}
-
-/*****************************
- * GCM
- ****************************/
-bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize)
-{
-
-    return true;
-}
-bool AES::gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize)
-{
 
     return true;
 }

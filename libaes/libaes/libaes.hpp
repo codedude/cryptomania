@@ -7,33 +7,26 @@
 namespace AES
 {
 
+enum class PADDING {
+    NONE,
+    ZEROS,
+    PKCS5,
+    PKCS7
+};
 
-enum class MODE
-{
+enum class MODE {
     ECB,
     CBC,
     CTR,
     GCM
 };
 
-enum class KEY_SIZE
-{
-    AES128,
-    AES192,
-    AES256
+enum class KEY_SIZE {
+    S128,
+    S192,
+    S256
 };
 
-struct KeySchedule
-{
-    KeySchedule() : keys(nullptr), len(0) {}
-    ~KeySchedule()
-    {
-        if (keys != nullptr)
-            delete[] keys;
-    }
-    word_t* keys;
-    int len;
-};
 
 /**
  * All size are expressed in bytes
@@ -45,8 +38,12 @@ class AES
 public:
     static const int BLOCKSIZE = 16; // 16 bytes = 128 bits, AES specification
 
-    AES() : keySchedule(), key(nullptr), padding(false), verbose(false), hasInit(false)
+    AES()
     {
+        this->verbose = false;
+        this->hasInit = false;
+        this->key = nullptr;
+        this->iv = nullptr;
     }
 
     ~AES() = default;
@@ -56,33 +53,30 @@ public:
     AES(const AES&& other) = delete;
     AES& operator=(const AES&& other) = delete;
 
-    bool initialize(MODE pOperationMode, const byte_t* pKey, KEY_SIZE pKeySize);
+    bool initialize(KEY_SIZE pKeySize, MODE pMode, const byte_t* pKey, const byte_t* pIv);
 
     std::string getInfos();
     static int getKeySizeFromEnum(KEY_SIZE value);
     static std::string getModeFromEnum(MODE value);
-    dword_t getPaddingSize(dword_t size);
+    unsigned int getPaddingSize(unsigned int dataSize);
 
     /*
     * Get the size needed by the encrypted buffer, since mode of operation add some value at the end
     * (i.e. IV, counter, AAD, AT...)
     * In addition to a padding, in ECB and CBC only
     */
-    dword_t getFileSizeNeeded(dword_t dataSize);
+    unsigned int getFileSizeNeeded(unsigned int dataSize);
 
-    bool cipher(byte_t* dataIn, byte_t* dataOut, dword_t dataSize);
-    bool cipher(byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize);
-    bool decipher(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize);
+    bool cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool decipher(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 
-    bool ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize);
-    bool cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize);
-    bool ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize);
-    bool gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize);
+    bool ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 
-    bool ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize);
-    bool cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize);
-    bool ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize);
-    bool gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize);
+    bool ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 
     void setVerbose(bool activate)
     {
@@ -90,25 +84,42 @@ public:
     }
 
 private:
-    const int Nb = 4;                         // 4 bytes = 32bits, AES specification
-    const int defaultIvSize = AES::BLOCKSIZE; // Use only for CBC/CTR when no iv is provided
-    int keySize;
+    struct KeySchedule
+    {
+        KeySchedule() : keys(nullptr), len(0) {}
+        ~KeySchedule()
+        {
+            if (keys != nullptr)
+            {
+                delete[] keys;
+                keys = nullptr;
+                len = 0;
+            }
+        }
+        word_t* keys;
+        int len;
+    };
+
+    const int Nb = 4;   // 4 bytes = 32bits, AES specification
     int Nr;
     int Nk;
-    MODE operationMode;
 
     KeySchedule keySchedule;
-    const byte_t* key;
 
-    bool padding;
     bool verbose; // Activate trace
     bool hasInit; // Is state ready to cipher/decipher
 
-    dword_t getHeaderSize();
+    int keySize;
+    PADDING padding;
+    MODE mode;
+    const byte_t* key;
+    const byte_t* iv;
+
+    unsigned int getHeaderSize();
     /*
     * PKCS#7 padding
     */
-    void applyPadding(byte_t* data, dword_t& dataSize);
+    void applyPadding(byte_t* data, unsigned int& dataSize);
 };
 
 } // namespace AES

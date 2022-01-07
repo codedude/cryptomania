@@ -8,43 +8,44 @@
 namespace AES
 {
 
-bool AES::initialize(MODE pOperationMode, const byte_t* pKey, KEY_SIZE pKeySize)
+bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, const byte_t* pKey, const byte_t* pIv)
 {
     if (pKey == nullptr)
         return false;
 
     this->key = pKey;
-    this->operationMode = pOperationMode;
+    this->iv = pIv;
+    this->mode = pMode;
 
     switch (pKeySize)
     {
     default:
-    case KEY_SIZE::AES128:
+    case KEY_SIZE::S128:
         this->keySize = 16;
         this->Nk = 4;
         this->Nr = 10;
         break;
-    case KEY_SIZE::AES192:
+    case KEY_SIZE::S192:
         this->keySize = 24;
         this->Nk = 6;
         this->Nr = 12;
         break;
-    case KEY_SIZE::AES256:
+    case KEY_SIZE::S256:
         this->keySize = 32;
         this->Nk = 8;
         this->Nr = 14;
         break;
     }
 
-    switch (this->operationMode)
+    switch (this->mode)
     {
     case MODE::ECB:
     case MODE::CBC:
-        this->padding = true;
+        this->padding = PADDING::PKCS7;
         break;
 
     default:
-        this->padding = false;
+        this->padding = PADDING::NONE;
         break;
     }
 
@@ -62,44 +63,38 @@ bool AES::initialize(MODE pOperationMode, const byte_t* pKey, KEY_SIZE pKeySize)
     return true;
 }
 
-void AES::applyPadding(byte_t* data, dword_t& dataSize)
+void AES::applyPadding(byte_t* data, unsigned int& dataSize)
 {
-    byte_t paddingSize = (byte_t)AES::getPaddingSize(dataSize);
-    memset(data + dataSize, (int)paddingSize, (size_t)paddingSize);
-    dataSize += (dword_t)paddingSize;
+    unsigned int paddingSize = AES::getPaddingSize(dataSize);
+    memset(data + dataSize, paddingSize, paddingSize);
+    dataSize += paddingSize;
 }
 
-bool AES::cipher(byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t* iv, int ivSize)
+bool AES::cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     if (!hasInit)
         return false;
 
-    if (dataIn == nullptr || dataOut == nullptr || iv == nullptr)
-        return false;
-    if (dataSize == 0 || ivSize < 1)
+    if (dataIn == nullptr || dataOut == nullptr || dataSize == 0)
         return false;
 
-    if (this->padding)
+    if (this->padding != PADDING::NONE)
     {
         this->applyPadding((byte_t*)dataIn, dataSize);
     }
 
     bool result;
-    if (this->operationMode == MODE::ECB)
+    if (this->mode == MODE::ECB)
     {
         result = this->ecb_encrypt(dataIn, dataOut, dataSize);
     }
-    else if (this->operationMode == MODE::CBC)
+    else if (this->mode == MODE::CBC)
     {
-        result = this->cbc_encrypt(dataIn, dataOut, dataSize, iv, ivSize);
+        result = this->cbc_encrypt(dataIn, dataOut, dataSize);
     }
-    else if (this->operationMode == MODE::CTR)
+    else if (this->mode == MODE::CTR)
     {
-        result = this->ctr_encrypt(dataIn, dataOut, dataSize, iv, ivSize);
-    }
-    else if (this->operationMode == MODE::GCM) // Not yet implemented
-    {
-        result = this->gcm_encrypt(dataIn, dataOut, dataSize, iv, ivSize);
+        result = this->ctr_encrypt(dataIn, dataOut, dataSize);
     }
     else // Should never happen
     {
@@ -109,49 +104,26 @@ bool AES::cipher(byte_t* dataIn, byte_t* dataOut, dword_t dataSize, const byte_t
     return result;
 }
 
-bool AES::cipher(byte_t* dataIn, byte_t* dataOut, dword_t dataSize)
-{
-    int tmp_ivSize = this->defaultIvSize;
-    byte_t* tmp_iv = new byte_t[tmp_ivSize];
-    if (tmp_iv == nullptr)
-        return false;
-
-    // TODO : random here
-    //RNG::ByteGenerator rngGen(0);
-    //rngGen.genBytes(tmp_iv, tmp_ivSize);
-
-    bool result = this->cipher(dataIn, dataOut, dataSize, tmp_iv, tmp_ivSize);
-
-    delete[] tmp_iv;
-    return result;
-}
-
-bool AES::decipher(const byte_t* dataIn, byte_t* dataOut, dword_t dataSize, dword_t ivSize)
+bool AES::decipher(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     if (!hasInit)
         return false;
 
-    if (dataIn == nullptr || dataOut == nullptr)
-        return false;
-    if (dataSize == 0)
+    if (dataIn == nullptr || dataOut == nullptr || dataSize == 0)
         return false;
 
     bool result;
-    if (this->operationMode == MODE::ECB)
+    if (this->mode == MODE::ECB)
     {
         result = this->ecb_decrypt(dataIn, dataOut, dataSize);
     }
-    else if (this->operationMode == MODE::CBC)
+    else if (this->mode == MODE::CBC)
     {
-        result = this->cbc_decrypt(dataIn, dataOut, dataSize, ivSize);
+        result = this->cbc_decrypt(dataIn, dataOut, dataSize);
     }
-    else if (this->operationMode == MODE::CTR)
+    else if (this->mode == MODE::CTR)
     {
-        result = this->ctr_decrypt(dataIn, dataOut, dataSize, ivSize);
-    }
-    else if (this->operationMode == MODE::GCM) // Not yet implemented
-    {
-        result = this->gcm_decrypt(dataIn, dataOut, dataSize, ivSize);
+        result = this->ctr_decrypt(dataIn, dataOut, dataSize);
     }
     else // Should never happen
     {
@@ -165,11 +137,11 @@ int AES::getKeySizeFromEnum(KEY_SIZE value)
 {
     switch (value)
     {
-    case KEY_SIZE::AES128:
+    case KEY_SIZE::S128:
         return 128;
-    case KEY_SIZE::AES192:
+    case KEY_SIZE::S192:
         return 192;
-    case KEY_SIZE::AES256:
+    case KEY_SIZE::S256:
         return 256;
     }
     return -1;
@@ -202,27 +174,27 @@ std::string AES::getInfos()
     buffer += "AES-";
     buffer += std::to_string(this->keySize * 8);
     buffer += "-";
-    buffer += AES::getModeFromEnum(this->operationMode);
+    buffer += AES::getModeFromEnum(this->mode);
     buffer += " / Key: ";
     buffer += bytesToHexString(this->key, this->keySize);
 
     return buffer;
 }
 
-dword_t AES::getPaddingSize(dword_t size)
+unsigned int AES::getPaddingSize(unsigned int dataSize)
 {
-    if (!this->hasInit || !this->padding)
+    if (!this->hasInit || this->padding == PADDING::NONE)
         return 0;
 
-    if (size % AES::BLOCKSIZE == 0)
+    if (dataSize % AES::BLOCKSIZE == 0)
         return AES::BLOCKSIZE;
-    return AES::BLOCKSIZE - (size % AES::BLOCKSIZE) + AES::BLOCKSIZE;
+    return AES::BLOCKSIZE - (dataSize % AES::BLOCKSIZE) + AES::BLOCKSIZE;
 }
 
-dword_t AES::getHeaderSize()
+unsigned int AES::getHeaderSize()
 {
-    dword_t n = 0;
-    switch (this->operationMode)
+    unsigned int n = 0;
+    switch (this->mode)
     {
     case MODE::ECB:
         n = 0;
@@ -242,16 +214,16 @@ dword_t AES::getHeaderSize()
     return n;
 }
 
-dword_t AES::getFileSizeNeeded(dword_t dataSize)
+unsigned int AES::getFileSizeNeeded(unsigned int dataSize)
 {
     if (!this->hasInit)
     {
         return 0;
     }
 
-    dword_t n = this->getHeaderSize();
-    dword_t paddingSize = 0;
-    if (this->padding)
+    unsigned int n = this->getHeaderSize();
+    unsigned int paddingSize = 0;
+    if (this->padding != PADDING::NONE)
         paddingSize = this->getPaddingSize(dataSize);
 
     return dataSize + paddingSize + n;

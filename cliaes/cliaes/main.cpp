@@ -1,6 +1,5 @@
 #include <iostream>
 #include <string>
-
 #include <boost/program_options.hpp>
 
 #include <utility/logs.hpp>
@@ -13,6 +12,7 @@ struct Args
     std::string file;
     std::string str;
     std::string key;
+    std::string iv;
     AES::KEY_SIZE type;
     AES::MODE mode;
 };
@@ -29,23 +29,16 @@ int main(int argc, char** argv)
     if (!getArgs(argc, argv, args))
         return 0;
 
-    // Get or generate a key
+    // Get key and iv
     byte_t* key = nullptr;
-    if (args.key.size() > 0)
-    {
-        if ((key = stringToBytes(args.key)) == nullptr)
-            return -1;
-    }
-    else
-    {
-        int keySize = AES::AES::getKeySizeFromEnum(args.type) / 8;
-        RNG::ByteGenerator gen(0);
-        key = new byte_t[keySize];
-        gen.genBytes(key, keySize);
-    }
+    byte_t* iv = nullptr;
+    if ((key = stringToBytes(args.key)) == nullptr)
+        return -1;
+    if ((iv = stringToBytes(args.iv)) == nullptr)
+        return -1;
 
     AES::AES aes;
-    if (!aes.initialize(args.mode, key, args.type))
+    if (!aes.initialize(args.type, args.mode, key, iv))
     {
         std::cout << "Can't init aes " << std::endl;
         return -1;
@@ -54,9 +47,9 @@ int main(int argc, char** argv)
     TRACE_INFO(aes.getInfos());
 
     byte_t* data_plain = nullptr;
-    word_t dataSizePlain = getFileSize(args.file);
-    dword_t dataSizeNeeded = aes.getFileSizeNeeded(dataSizePlain);
-    dword_t paddingSize = aes.getPaddingSize(dataSizePlain);
+    unsigned int dataSizePlain = getFileSize(args.file);
+    unsigned int dataSizeNeeded = aes.getFileSizeNeeded(dataSizePlain);
+    unsigned int paddingSize = aes.getPaddingSize(dataSizePlain);
     if ((data_plain = loadDataFromFile(args.file, dataSizePlain + paddingSize)) == nullptr)
     {
         std::cout << "Can't load file " << args.file << std::endl;
@@ -67,7 +60,7 @@ int main(int argc, char** argv)
     byte_t* data_decrypted = new byte_t[dataSizePlain + paddingSize];
 
     aes.cipher(data_plain, data_crypted, dataSizePlain);
-    aes.decipher(data_crypted, data_decrypted, dataSizeNeeded, AES::AES::BLOCKSIZE);
+    aes.decipher(data_crypted, data_decrypted, dataSizeNeeded);
 
     TRACE_INFO("Plaintext file in: ", args.file);
     std::string outputFileName = args.file + "_encrypted";
@@ -89,6 +82,7 @@ int main(int argc, char** argv)
     delete[] data_decrypted;
     delete[] data_crypted;
     delete[] data_plain;
+    delete[] iv;
     delete[] key;
 
     TRACE_STOP();
@@ -107,8 +101,6 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
         args.file = vm["file"].as<std::string>();
     else
         return false;
-    if (vm.count("string"))
-        args.str = vm["string"].as<std::string>();
 
     if (vm.count("key"))
     {
@@ -120,16 +112,31 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
         }
         args.key = key;
     }
+    else
+        return false;
+
+    if (vm.count("iv"))
+    {
+        auto iv = vm["iv"].as<std::string>();
+        if (iv.length() < 32)
+        {
+            std::cout << "iv error" << std::endl;
+            return false;
+        }
+        args.iv = iv;
+    }
+    else
+        return false;
 
     if (vm.count("type"))
     {
         auto type = vm["type"].as<std::string>();
         if (type == "128")
-            args.type = AES::KEY_SIZE::AES128;
+            args.type = AES::KEY_SIZE::S128;
         else if (type == "192")
-            args.type = AES::KEY_SIZE::AES192;
+            args.type = AES::KEY_SIZE::S192;
         else if (type == "256")
-            args.type = AES::KEY_SIZE::AES256;
+            args.type = AES::KEY_SIZE::S256;
         else
             return false;
     }
@@ -161,7 +168,13 @@ bool getArgs(int argc, char** argv, Args& args)
     namespace po = boost::program_options;
 
     po::options_description desc("Allowed options");
-    desc.add_options()("help", "produce help message")("file,f", po::value<std::string>(), "file to encrypt")("string,s", po::value<std::string>(), "string to encrypt")("key,k", po::value<std::string>(), "secret key")("type,t", po::value<std::string>(), "type of aes (128, 192, 256)")("mode,m", po::value<std::string>(), "operation mode (CBC, CTR, GCM)");
+    desc.add_options()
+        ("help", "produce help message")
+        ("file,fi", po::value<std::string>(), "file to encrypt")
+        ("key,k", po::value<std::string>(), "secret key")
+        ("iv,n", po::value<std::string>(), "IV or nonce")
+        ("type,t", po::value<std::string>(), "type of aes (128, 192, 256)")
+        ("mode,m", po::value<std::string>(), "operation mode (ebc, cbc, ctr)");
 
     po::variables_map vm;
     try
@@ -189,7 +202,8 @@ byte_t* stringToBytes(const std::string& str)
     byte_t* buffer = new byte_t[str.size() / 2];
     for (int i = 0; i < (int)str.size(); i += 2)
     {
-        buffer[i / 2] = (std::stoi(std::string(1, str[i]), nullptr, 16) << 4) | (std::stoi(std::string(1, str[i + 1]), nullptr, 16));
+        buffer[i / 2] = (byte_t)((std::stoi(std::string(1, str[i]), nullptr, 16) << 4)
+            | (std::stoi(std::string(1, str[i + 1]), nullptr, 16)));
     }
     return buffer;
 }

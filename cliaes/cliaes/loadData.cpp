@@ -4,7 +4,7 @@
 
 #include <libaes/types.hpp>
 
-dword_t getFileSize(std::string path)
+unsigned int getFileSize(std::string path)
 {
     std::streampos fileSize = 0;
 
@@ -15,10 +15,10 @@ dword_t getFileSize(std::string path)
         file.close();
     }
 
-    return (dword_t)fileSize;
+    return (unsigned int)fileSize;
 }
 
-byte_t* loadDataFromFile(std::string path, word_t bufferSize)
+byte_t* loadDataFromFile(std::string path, unsigned int bufferSize)
 {
     std::streampos fileSize;
     byte_t* data = nullptr;
