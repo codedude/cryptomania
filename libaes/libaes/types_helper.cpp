@@ -44,7 +44,7 @@ std::string bytesToHexString(const byte_t* bytes, int byteSize)
     for (int i = 0; i < byteSize; ++i)
     {
         char buff[3];
-        sprintf_s(buff, 2, "%02X", bytes[i]);
+        sprintf_s(buff, 3, "%02X", bytes[i]);
         buffer += std::string(buff);
     }
 
@@ -54,6 +54,6 @@ std::string bytesToHexString(const byte_t* bytes, int byteSize)
 std::string wordToHexString(word_t word)
 {
     char buff[9];
-    sprintf_s(buff, 8, "%08X", word);
+    sprintf_s(buff, 9, "%08X", word);
     return std::string(buff);
 }

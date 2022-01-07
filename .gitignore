@@ -13,6 +13,9 @@ build/
 exec.cmd
 nmake.cmd
 
+*.encrypted
+*.decrypted
+
 #Linux/Mac
 *.o
 

@@ -1,9 +1,8 @@
 /*
  * Generic 1 header file log system
- * Must specify -DDLOG to the compiler to show messages
+ * Must specify -DDEBUG to the compiler to show messages
  * usage: TRACE(arg1, arg2, ...)
- * Unpack variadic tricks : https://stackoverflow.com/questions/21806561/
- * concatenating-strings-and-numbers-in-variadic-template-function
+ * Unpack variadic tricks : https://stackoverflow.com/questions/21806561/concatenating-strings-and-numbers-in-variadic-template-function
  * ONLY for debug/dev purpose, don't use to print normal log infos
  */
 
@@ -157,7 +156,7 @@ private:
         _activateVirtualTerminal();
 #endif
     } ///< Constructor
-    ~Log() = default;                                    ///< Default destructor
+    ~Log() = default;                                   ///< Default destructor
     Log(Log const&) = delete;                           ///< Copy constructor
     Log(Log&&) = delete;                                ///< Move constructor
     Log& operator=(Log const&) = delete;                ///< Copy assignment

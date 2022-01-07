@@ -9,16 +9,18 @@
 
 struct Args
 {
-    std::string file;
-    std::string str;
+    std::string in;
+    std::string out;
     std::string key;
     std::string iv;
-    AES::KEY_SIZE type;
+    bool printList;
+    bool encrypt;
+    AES::KEY_SIZE size;
     AES::MODE mode;
 };
 
 bool getArgs(int argc, char** argv, Args& args);
-byte_t* stringToBytes(const std::string& str);
+byte_t* hexStrToBytes(const std::string& str);
 
 int main(int argc, char** argv)
 {
@@ -27,18 +29,23 @@ int main(int argc, char** argv)
     // Get args from cmd line, as is
     Args args;
     if (!getArgs(argc, argv, args))
+        return -1;
+
+    if (args.printList) {
+        std::cout << AES::AES::getSupportedList() << std::endl;
         return 0;
+    }
 
     // Get key and iv
     byte_t* key = nullptr;
     byte_t* iv = nullptr;
-    if ((key = stringToBytes(args.key)) == nullptr)
+    if ((key = hexStrToBytes(args.key)) == nullptr)
         return -1;
-    if ((iv = stringToBytes(args.iv)) == nullptr)
+    if ((iv = hexStrToBytes(args.iv)) == nullptr)
         return -1;
 
     AES::AES aes;
-    if (!aes.initialize(args.type, args.mode, key, iv))
+    if (!aes.initialize(args.size, args.mode, key, iv))
     {
         std::cout << "Can't init aes " << std::endl;
         return -1;
@@ -47,12 +54,12 @@ int main(int argc, char** argv)
     TRACE_INFO(aes.getInfos());
 
     byte_t* data_plain = nullptr;
-    unsigned int dataSizePlain = getFileSize(args.file);
+    unsigned int dataSizePlain = getFileSize(args.in);
     unsigned int dataSizeNeeded = aes.getFileSizeNeeded(dataSizePlain);
     unsigned int paddingSize = aes.getPaddingSize(dataSizePlain);
-    if ((data_plain = loadDataFromFile(args.file, dataSizePlain + paddingSize)) == nullptr)
+    if ((data_plain = loadDataFromFile(args.in, dataSizePlain + paddingSize)) == nullptr)
     {
-        std::cout << "Can't load file " << args.file << std::endl;
+        std::cout << "Can't load file " << args.in << std::endl;
         return -1;
     }
 
@@ -62,22 +69,20 @@ int main(int argc, char** argv)
     aes.cipher(data_plain, data_crypted, dataSizePlain);
     aes.decipher(data_crypted, data_decrypted, dataSizeNeeded);
 
-    TRACE_INFO("Plaintext file in: ", args.file);
-    std::string outputFileName = args.file + "_encrypted";
-    if (!writeEncryptedDataToFile(outputFileName, data_crypted, dataSizeNeeded))
+    TRACE_INFO("Plaintext file in: ", args.in);
+    if (!writeEncryptedDataToFile(args.out, data_crypted, dataSizeNeeded))
     {
-        std::cout << "Can't write file " << outputFileName << std::endl;
+        std::cout << "Can't write file " << args.out << std::endl;
         return -1;
     }
-    TRACE_INFO("Encrypted file in: ", outputFileName);
+    TRACE_INFO("Encrypted file in: ", args.out);
 
-    outputFileName = args.file + "_uncrypted";
-    if (!writeEncryptedDataToFile(outputFileName, data_decrypted, dataSizePlain))
+    if (!writeEncryptedDataToFile(args.out, data_decrypted, dataSizePlain))
     {
-        std::cout << "Can't write file " << outputFileName << std::endl;
+        std::cout << "Can't write file " << args.out << std::endl;
         return -1;
     }
-    TRACE_INFO("Decrypted file in: ", outputFileName);
+    TRACE_INFO("Decrypted file in: ", args.out);
 
     delete[] data_decrypted;
     delete[] data_crypted;
@@ -92,56 +97,64 @@ int main(int argc, char** argv)
 
 static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
 {
-    if (vm.count("help"))
-    {
+    if (vm.count("help")) {
         return false;
     }
 
-    if (vm.count("file"))
-        args.file = vm["file"].as<std::string>();
-    else
-        return false;
-
-    if (vm.count("key"))
-    {
-        auto key = vm["key"].as<std::string>();
-        if (key.length() < 32)
-        {
-            std::cout << "Key error" << std::endl;
-            return false;
-        }
-        args.key = key;
+    if (vm.count("list")) {
+        args.printList = true;
+        return true;
     }
-    else
-        return false;
-
-    if (vm.count("iv"))
-    {
-        auto iv = vm["iv"].as<std::string>();
-        if (iv.length() < 32)
-        {
-            std::cout << "iv error" << std::endl;
-            return false;
-        }
-        args.iv = iv;
+    else {
+        args.printList = false;
     }
-    else
-        return false;
 
-    if (vm.count("type"))
-    {
-        auto type = vm["type"].as<std::string>();
-        if (type == "128")
-            args.type = AES::KEY_SIZE::S128;
-        else if (type == "192")
-            args.type = AES::KEY_SIZE::S192;
-        else if (type == "256")
-            args.type = AES::KEY_SIZE::S256;
+    bool gotError = false;
+    bool keySizeError = false;
+
+    if (vm.count("encrypt") && vm.count("decrypt")) {
+        std::cout << "Both encrypt and decrypt are set, choose one !" << std::endl;
+        gotError = true;
+    }
+    args.encrypt = vm.count("decrypt") == 0;
+
+    if (vm.count("in")) {
+        args.in = vm["in"].as<std::string>();
+    }
+    else {
+        std::cout << "Input file is missing" << std::endl;
+        gotError = true;
+    }
+
+    if (vm.count("out")) {
+        args.out = vm["out"].as<std::string>();
+    }
+    else {
+        if (args.encrypt)
+            args.out = args.in + ".encrypted";
         else
-            return false;
+            args.out = args.in + ".decrypted";
     }
-    else
-        return false;
+
+    if (vm.count("size"))
+    {
+        auto size = vm["size"].as<std::string>();
+        if (size == "128")
+            args.size = AES::KEY_SIZE::S128;
+        else if (size == "192")
+            args.size = AES::KEY_SIZE::S192;
+        else if (size == "256")
+            args.size = AES::KEY_SIZE::S256;
+        else {
+            std::cout << "Key size is invalid" << std::endl;
+            keySizeError = true;
+            gotError = true;
+        }
+    }
+    else {
+        std::cout << "Key size is missing" << std::endl;
+        gotError = true;
+    }
 
     if (vm.count("mode"))
     {
@@ -154,27 +167,63 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
             args.mode = AES::MODE::CTR;
         else if (mode == "gcm")
             args.mode = AES::MODE::GCM;
-        else
-            return false;
+        else {
+            std::cout << "Mode is invalid" << std::endl;
+            gotError = true;
+        }
     }
-    else
-        return false;
+    else {
+        std::cout << "Mode is missing" << std::endl;
+        gotError = true;
+    }
 
-    return true;
+    if (vm.count("key")) { // Need args.size first
+        args.key = vm["key"].as<std::string>();
+        int keyBitsLen = (int)args.key.size() * 4; // 1 char = 4 bits in hex
+        int expectedSize = keySizeError ? 0 : (int)args.size;
+        if (keyBitsLen != expectedSize) {
+            std::cout << "Key should be " << expectedSize / 4 << " chars long " << std::endl;
+            gotError = true;
+        }
+    }
+    else {
+        std::cout << "Key is missing" << std::endl;
+        gotError = true;
+    }
+
+    if (vm.count("iv")) {
+        args.iv = vm["iv"].as<std::string>();
+        int keyBitsLen = (int)args.iv.size() * 4; // 1 char = 4 bits in hex
+        int expectedSize = keySizeError ? 0 : (int)args.size;
+        if (keyBitsLen != expectedSize) {
+            std::cout << "iv should be " << expectedSize / 4 << " chars long " << std::endl;
+            gotError = true;
+        }
+    }
+    else {
+        std::cout << "iv is missing" << std::endl;
+        gotError = true;
+    }
+
+    return !gotError;
 }
 
 bool getArgs(int argc, char** argv, Args& args)
 {
     namespace po = boost::program_options;
 
-    po::options_description desc("Allowed options");
+    po::options_description desc("Command line options");
     desc.add_options()
-        ("help", "produce help message")
-        ("file,fi", po::value<std::string>(), "file to encrypt")
-        ("key,k", po::value<std::string>(), "secret key")
-        ("iv,n", po::value<std::string>(), "IV or nonce")
-        ("type,t", po::value<std::string>(), "type of aes (128, 192, 256)")
-        ("mode,m", po::value<std::string>(), "operation mode (ebc, cbc, ctr)");
+        ("help,h", "produce help message then exit")
+        ("key,k", po::value<std::string>(), "secret key in hexadecimal")
+        ("iv,n", po::value<std::string>(), "iv or nonce in hexadecimal")
+        ("list,l", "list supported algorithms then exit")
+        ("encrypt,e", po::value<std::string>(), "encrypt input file (default)")
+        ("decrypt,d", po::value<std::string>(), "decrypt input file")
+        ("in,i", po::value<std::string>(), "input file")
+        ("out,o", po::value<std::string>(), "output file (default = X.[de|en]crypted)")
+        ("mode,m", po::value<std::string>(), "operation mode (ebc, cbc, ctr)")
+        ("size,s", po::value<std::string>(), "key size (128, 192, 256)");
 
     po::variables_map vm;
     try
@@ -197,7 +246,7 @@ bool getArgs(int argc, char** argv, Args& args)
     return true;
 }
 
-byte_t* stringToBytes(const std::string& str)
+byte_t* hexStrToBytes(const std::string& str)
 {
     byte_t* buffer = new byte_t[str.size() / 2];
     for (int i = 0; i < (int)str.size(); i += 2)

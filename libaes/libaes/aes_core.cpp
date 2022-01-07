@@ -133,6 +133,14 @@ bool AES::decipher(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
     return result;
 }
 
+std::string AES::getSupportedList()
+{
+    std::string buffer;
+    buffer += "Supported algorithm : ";
+    buffer += "aes-[128|192|256]-[ecb|cbc|ctr]";
+    return buffer;
+}
+
 int AES::getKeySizeFromEnum(KEY_SIZE value)
 {
     switch (value)
@@ -177,6 +185,8 @@ std::string AES::getInfos()
     buffer += AES::getModeFromEnum(this->mode);
     buffer += " / Key: ";
     buffer += bytesToHexString(this->key, this->keySize);
+    buffer += " / iv: ";
+    buffer += bytesToHexString(this->iv, this->keySize);
 
     return buffer;
 }

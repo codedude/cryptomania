@@ -22,9 +22,9 @@ enum class MODE {
 };
 
 enum class KEY_SIZE {
-    S128,
-    S192,
-    S256
+    S128 = 128,
+    S192 = 192,
+    S256 = 256
 };
 
 
@@ -56,8 +56,11 @@ public:
     bool initialize(KEY_SIZE pKeySize, MODE pMode, const byte_t* pKey, const byte_t* pIv);
 
     std::string getInfos();
+
+    static std::string getSupportedList();
     static int getKeySizeFromEnum(KEY_SIZE value);
     static std::string getModeFromEnum(MODE value);
+
     unsigned int getPaddingSize(unsigned int dataSize);
 
     /*
