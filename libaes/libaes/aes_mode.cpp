@@ -163,9 +163,13 @@ bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     unsigned int i = 0;
     unsigned int nBlocks = dataSize / 16;
     unsigned int lastBlock = dataSize % 16;
-    if (lastBlock != 0)
-        nBlocks++;
     unsigned int blockSize = AES::BLOCKSIZE;
+    if (lastBlock != 0) {
+        nBlocks++;
+        if (nBlocks == 1) {
+            blockSize = lastBlock;
+        }
+    }
     while (i < nBlocks)
     {
         // Init the state (AES input)
@@ -206,9 +210,13 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     unsigned int i = 0;
     unsigned int nBlocks = dataSize / 16 - 1;
     unsigned int lastBlock = dataSize % 16;
-    if (lastBlock != 0)
-        nBlocks++;
     unsigned int blockSize = AES::BLOCKSIZE;
+    if (lastBlock != 0) {
+        nBlocks++;
+        if (nBlocks == 1) {
+            blockSize = lastBlock;
+        }
+    }
     while (i < nBlocks)
     {
         // Init the state (AES input)

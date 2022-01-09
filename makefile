@@ -1,6 +1,9 @@
 !INCLUDE top.mh
 
 #Targets
+
+# .PHONY: test clean re
+
 all: check_dirs libaes cliaes
 
 libaes: check_dirs
@@ -30,6 +33,8 @@ check_dirs:
     @if not exist $(GEN_DIR) mkdir $(GEN_DIR)
     @if not exist $(BIN_DIR) mkdir $(BIN_DIR)
 
-test: ;
+do_test:
+    @cd test
+    @Powershell.exe -File testSuite.ps1
 
 #============================< END OF FILE >===================================

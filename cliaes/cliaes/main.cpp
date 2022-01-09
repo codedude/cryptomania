@@ -53,41 +53,6 @@ int main(int argc, char** argv)
 
     TRACE_INFO(aes.getInfos());
 
-    // byte_t* data_plain = nullptr;
-    // unsigned int dataSizePlain = getFileSize(args.in);
-    // unsigned int dataSizeNeeded = aes.getFileSizeNeeded(dataSizePlain);
-    // unsigned int paddingSize = aes.getPaddingSize(dataSizePlain);
-    // if ((data_plain = loadDataFromFile(args.in, dataSizePlain + paddingSize)) == nullptr)
-    // {
-    //     std::cout << "Can't load file " << args.in << std::endl;
-    //     return -1;
-    // }
-
-    // byte_t* data_crypted = new byte_t[dataSizeNeeded];
-    // byte_t* data_decrypted = new byte_t[dataSizePlain + paddingSize];
-
-    // aes.cipher(data_plain, data_crypted, dataSizePlain);
-    // aes.decipher(data_crypted, data_decrypted, dataSizeNeeded);
-
-    // TRACE_INFO("Plaintext file in: ", args.in);
-    // if (!writeEncryptedDataToFile(args.out, data_crypted, dataSizeNeeded))
-    // {
-    //     std::cout << "Can't write file " << args.out << std::endl;
-    //     return -1;
-    // }
-    // TRACE_INFO("Encrypted file in: ", args.out);
-
-    // if (!writeEncryptedDataToFile(args.out, data_decrypted, dataSizePlain))
-    // {
-    //     std::cout << "Can't write file " << args.out << std::endl;
-    //     return -1;
-    // }
-    // TRACE_INFO("Decrypted file in: ", args.out);
-
-    // delete[] data_decrypted;
-    // delete[] data_crypted;
-    // delete[] data_plain;
-
     byte_t* dataIn = nullptr;
     byte_t* dataOut = nullptr;
     unsigned int dataInSize = getFileSize(args.in);
@@ -119,7 +84,7 @@ int main(int argc, char** argv)
     else {
         aes.decipher(dataIn, dataOut, dataInSize);
         dataInSize -= aes.getHeaderSize();
-        revPaddingSize = aes.getRevPaddingSize(dataOut, dataOutSize - 1);
+        revPaddingSize = aes.getRevPaddingSize(dataOut, dataOutSize);
     }
 
     TRACE_INFO("Input file in: ", args.in);
@@ -198,6 +163,7 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
     }
     else {
         std::cout << "Key size is missing" << std::endl;
+        keySizeError = true;
         gotError = true;
     }
 
@@ -267,7 +233,7 @@ bool getArgs(int argc, char** argv, Args& args)
         ("decrypt,d", "decrypt input file")
         ("in,i", po::value<std::string>(), "input file")
         ("out,o", po::value<std::string>(), "output file (default = X.[de|en]crypted)")
-        ("mode,m", po::value<std::string>(), "operation mode (ebc, cbc, ctr)")
+        ("mode,m", po::value<std::string>(), "operation mode (ecb, cbc, ctr)")
         ("size,s", po::value<std::string>(), "key size (128, 192, 256)")
         ("padding,p", po::value<std::string>(), "padding (none, zeros, pkcs5, pkcs7 = default)");
 

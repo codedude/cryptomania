@@ -46,6 +46,7 @@ WSDK_BIN="$(WSDK_DIR)"\bin\$(WSDK_FULLBUILD)\$(TARGET_ARCH)
 #VisualStudio SDK
 MSVC_INC="$(MSVC_DIR)"\include
 MSVC_LIB="$(MSVC_DIR)"\lib\$(TARGET_ARCH)
+MSVC_LIB_OC="$(MSVC_DIR)"\lib\onecore\$(TARGET_ARCH)
 MSVC_BIN="$(MSVC_DIR)"\bin\Hostx64\$(TARGET_ARCH)
 
 #Compiler and linker
@@ -59,6 +60,7 @@ NMAKE=$(MSVC_BIN)\nmake.exe
 
 LIB_PATH=\
     /libpath:$(MSVC_LIB)\
+    /libpath:$(MSVC_LIB_OC)\
     /libpath:$(WSDK_LIB_UCRT)\
     /libpath:$(WSDK_LIB_UM)
 
@@ -69,7 +71,7 @@ INCLUDE_PATH=\
     /I$(WSDK_INC_SHARED)
 
 CLOPT=/nologo /c /MP /W4 /EHsc /Ox
-QROPT=/nologo /c
+AROPT=/nologo
 CLDEF=/D UNICODE /D _UNICODE
 LDOPT=/nologo /INCREMENTAL:NO
 
@@ -89,11 +91,11 @@ DEBUG=1
 
 
 !IF "$(DEBUG)" == "1"
-CLOPT=$(CLOPT) /MDd
-CLDEF=$(CLCLDEFOPT) /D _DEBUG /D DEBUG
+CLOPT=$(CLOPT) /MDd /fsanitize=address /Zi
+CLDEF=$(CLDEF) /D _DEBUG /D DEBUG
 LDOPT=$(LDOPT) /DEBUG:FASTLINK
 !ELSE
-CLOPT=$(CLOPT) /MT
+CLOPT=$(CLOPT) /MD
 CLDEF=$(CLDEF) /D _RELEASE /D RELEASE
 LDOPT=$(LDOPT) /RELEASE
 !ENDIF
