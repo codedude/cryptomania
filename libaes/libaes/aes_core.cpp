@@ -201,6 +201,14 @@ unsigned int AES::getPaddingSize(unsigned int dataSize)
     return AES::BLOCKSIZE - (dataSize % AES::BLOCKSIZE) + AES::BLOCKSIZE;
 }
 
+unsigned int AES::getRevPaddingSize(const byte_t* dataIn, unsigned int dataSize)
+{
+    if (this->padding == PADDING::NONE)
+        return 0;
+    byte_t paddingSize = dataIn[dataSize - 1];
+    return paddingSize;
+}
+
 unsigned int AES::getHeaderSize()
 {
     unsigned int n = 0;

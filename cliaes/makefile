@@ -38,13 +38,13 @@ LIBS=\
     $(LIBAES_PATH)
 
 #Targets
-all: check_dirs libaes_dep $(TARGET_BIN)
+all: check_dirs $(TARGET_BIN)
 
 libaes_dep: $(LIBAES_PATH)
 
 $(OBJ): $(DEP_H) makefile
 
-$(TARGET_BIN): $(OBJ)
+$(TARGET_BIN): libaes_dep $(OBJ)
     @echo $(TARGET) - Linking...
     @set PATH=$(MSVC_BIN);$(WSDK_BIN);$(PATH)
     $(LD) $(LDOPT) /OUT:$(TARGET_BIN) $(LIB_PATH)\

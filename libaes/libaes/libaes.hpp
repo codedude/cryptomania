@@ -69,6 +69,8 @@ public:
     * In addition to a padding, in ECB and CBC only
     */
     unsigned int getFileSizeNeeded(unsigned int dataSize);
+    unsigned int getHeaderSize();
+    unsigned int getRevPaddingSize(const byte_t* dataIn, unsigned int dataSize);
 
     bool cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool decipher(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
@@ -118,7 +120,6 @@ private:
     const byte_t* key;
     const byte_t* iv;
 
-    unsigned int getHeaderSize();
     /*
     * PKCS#7 padding
     */

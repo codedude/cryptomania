@@ -53,40 +53,85 @@ int main(int argc, char** argv)
 
     TRACE_INFO(aes.getInfos());
 
-    byte_t* data_plain = nullptr;
-    unsigned int dataSizePlain = getFileSize(args.in);
-    unsigned int dataSizeNeeded = aes.getFileSizeNeeded(dataSizePlain);
-    unsigned int paddingSize = aes.getPaddingSize(dataSizePlain);
-    if ((data_plain = loadDataFromFile(args.in, dataSizePlain + paddingSize)) == nullptr)
+    // byte_t* data_plain = nullptr;
+    // unsigned int dataSizePlain = getFileSize(args.in);
+    // unsigned int dataSizeNeeded = aes.getFileSizeNeeded(dataSizePlain);
+    // unsigned int paddingSize = aes.getPaddingSize(dataSizePlain);
+    // if ((data_plain = loadDataFromFile(args.in, dataSizePlain + paddingSize)) == nullptr)
+    // {
+    //     std::cout << "Can't load file " << args.in << std::endl;
+    //     return -1;
+    // }
+
+    // byte_t* data_crypted = new byte_t[dataSizeNeeded];
+    // byte_t* data_decrypted = new byte_t[dataSizePlain + paddingSize];
+
+    // aes.cipher(data_plain, data_crypted, dataSizePlain);
+    // aes.decipher(data_crypted, data_decrypted, dataSizeNeeded);
+
+    // TRACE_INFO("Plaintext file in: ", args.in);
+    // if (!writeEncryptedDataToFile(args.out, data_crypted, dataSizeNeeded))
+    // {
+    //     std::cout << "Can't write file " << args.out << std::endl;
+    //     return -1;
+    // }
+    // TRACE_INFO("Encrypted file in: ", args.out);
+
+    // if (!writeEncryptedDataToFile(args.out, data_decrypted, dataSizePlain))
+    // {
+    //     std::cout << "Can't write file " << args.out << std::endl;
+    //     return -1;
+    // }
+    // TRACE_INFO("Decrypted file in: ", args.out);
+
+    // delete[] data_decrypted;
+    // delete[] data_crypted;
+    // delete[] data_plain;
+
+    byte_t* dataIn = nullptr;
+    byte_t* dataOut = nullptr;
+    unsigned int dataInSize = getFileSize(args.in);
+    unsigned int paddingSize;
+    unsigned int revPaddingSize;
+    unsigned int dataOutSize = 0;
+
+    if (args.encrypt) {
+        dataOutSize = aes.getFileSizeNeeded(dataInSize);
+        paddingSize = aes.getPaddingSize(dataInSize);
+    }
+    else {
+        dataOutSize = dataInSize - aes.getHeaderSize();
+        paddingSize = 0;
+    }
+
+    // Read input file
+    if ((dataIn = loadDataFromFile(args.in, dataInSize + paddingSize)) == nullptr)
     {
         std::cout << "Can't load file " << args.in << std::endl;
         return -1;
     }
 
-    byte_t* data_crypted = new byte_t[dataSizeNeeded];
-    byte_t* data_decrypted = new byte_t[dataSizePlain + paddingSize];
+    dataOut = new byte_t[dataOutSize];
+    if (args.encrypt) {
+        aes.cipher(dataIn, dataOut, dataInSize);
+        revPaddingSize = 0;
+    }
+    else {
+        aes.decipher(dataIn, dataOut, dataInSize);
+        dataInSize -= aes.getHeaderSize();
+        revPaddingSize = aes.getRevPaddingSize(dataOut, dataOutSize - 1);
+    }
 
-    aes.cipher(data_plain, data_crypted, dataSizePlain);
-    aes.decipher(data_crypted, data_decrypted, dataSizeNeeded);
-
-    TRACE_INFO("Plaintext file in: ", args.in);
-    if (!writeEncryptedDataToFile(args.out, data_crypted, dataSizeNeeded))
+    TRACE_INFO("Input file in: ", args.in);
+    TRACE_INFO("Output file in: ", args.out);
+    if (!writeEncryptedDataToFile(args.out, dataOut, dataOutSize - revPaddingSize))
     {
         std::cout << "Can't write file " << args.out << std::endl;
         return -1;
     }
-    TRACE_INFO("Encrypted file in: ", args.out);
 
-    if (!writeEncryptedDataToFile(args.out, data_decrypted, dataSizePlain))
-    {
-        std::cout << "Can't write file " << args.out << std::endl;
-        return -1;
-    }
-    TRACE_INFO("Decrypted file in: ", args.out);
-
-    delete[] data_decrypted;
-    delete[] data_crypted;
-    delete[] data_plain;
+    delete[] dataIn;
+    delete[] dataOut;
     delete[] iv;
     delete[] key;
 
@@ -218,12 +263,13 @@ bool getArgs(int argc, char** argv, Args& args)
         ("key,k", po::value<std::string>(), "secret key in hexadecimal")
         ("iv,n", po::value<std::string>(), "iv or nonce in hexadecimal")
         ("list,l", "list supported algorithms then exit")
-        ("encrypt,e", po::value<std::string>(), "encrypt input file (default)")
-        ("decrypt,d", po::value<std::string>(), "decrypt input file")
+        ("encrypt,e", "encrypt input file (default)")
+        ("decrypt,d", "decrypt input file")
         ("in,i", po::value<std::string>(), "input file")
         ("out,o", po::value<std::string>(), "output file (default = X.[de|en]crypted)")
         ("mode,m", po::value<std::string>(), "operation mode (ebc, cbc, ctr)")
-        ("size,s", po::value<std::string>(), "key size (128, 192, 256)");
+        ("size,s", po::value<std::string>(), "key size (128, 192, 256)")
+        ("padding,p", po::value<std::string>(), "padding (none, zeros, pkcs5, pkcs7 = default)");
 
     po::variables_map vm;
     try
