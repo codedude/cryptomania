@@ -23,19 +23,46 @@ word_t bytesToWord(byte_t b1, byte_t b2, byte_t b3, byte_t b4)
     return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4;
 }
 
-void qwordToByteArray(qword_t input, byte_t* buffer)
+void qwordCopy(const qword_t& from, qword_t& to)
 {
-    for (int i = 0; i < 16; ++i)
-        buffer[i] = (byte_t)(input >> ((15 - i) * 8)) & 0xff;
+    memcpy(QWTOBUF(to), QWTOBUF(from), sizeof(qword_t));
 }
 
-qword_t byteArrayToQword(const byte_t* buffer, int size)
+void qwordCopy(const byte_t* from, qword_t& to)
 {
-    qword_t n = 0;
-    for (int i = 0; i < size; ++i)
-        n = (n <<= 8) | buffer[i];
-    return n;
+    memcpy(QWTOBUF(to), from, sizeof(qword_t));
 }
+
+void qwordCopy(const qword_t& from, byte_t* to)
+{
+    memcpy(to, QWTOBUF(from), sizeof(qword_t));
+}
+
+void qwordCopy(const byte_t* from, byte_t* to)
+{
+    memcpy(to, from, sizeof(qword_t));
+}
+
+// xor = dont care of byte swipping
+void qwordXor(const qword_t& q1, qword_t& q2)
+{
+    for (int i = 0; i < 16; ++i)
+        q2.b[i] ^= q1.b[i];
+}
+
+// https://github.com/openssl/openssl/blob/master/crypto/modes/ctr128.c
+void qwordInc(qword_t& q1)
+{
+    int n = 16;
+    word_t carry = 1;
+    do {
+        --n;
+        carry += q1.b[n];
+        q1.b[n] = (byte_t)carry;
+        carry >>= 8;
+    } while (carry && n);
+}
+
 
 std::string bytesToHexString(const byte_t* bytes, int byteSize)
 {

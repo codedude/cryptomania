@@ -1,41 +1,41 @@
 #include <libaes/libaes.hpp>
 #include <libaes/types_helper.hpp>
 #include <libaes/aes_cipher.hpp>
-
+#include <iostream>
 namespace AES
 {
+
 /**
  * Increment counter function, used for CTR and GCM only
 **/
 static inline void incCounter(qword_t& counter)
 {
-    counter += 1;
+    qwordInc(counter);
 }
 
 /*****************************
  * ECB
  ****************************/
-
 bool AES::ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
-    byte_t state[AES::BLOCKSIZE];
+    qword_t state;
 
-    unsigned int offsetDataIn = 0;
+    unsigned int offsetData = 0;
     unsigned int i = 0;
     const unsigned int nBlocks = dataSize / 16;
     while (i < nBlocks)
     {
         // Init the state (AES input)
-        memcpy(state, dataIn + offsetDataIn, AES::BLOCKSIZE);
+        memcpy(QWTOBUF(state), dataIn + offsetData, AES::BLOCKSIZE);
 
         // Cipher state
-        cipherBlock(state, ksch, this->Nr);
+        cipherBlock(QWTOBUF(state), ksch, this->Nr);
 
-        memcpy(dataOut + offsetDataIn, state, AES::BLOCKSIZE);
+        memcpy(dataOut + offsetData, QWTOCBUF(state), AES::BLOCKSIZE);
 
         ++i;
-        offsetDataIn += AES::BLOCKSIZE;
+        offsetData += AES::BLOCKSIZE;
     }
 
     return true;
@@ -44,23 +44,23 @@ bool AES::ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
 bool AES::ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
-    byte_t state[AES::BLOCKSIZE];
+    qword_t state;
 
-    unsigned int offsetDataIn = 0;
+    unsigned int offsetData = 0;
     unsigned int i = 0;
     const unsigned int nBlocks = dataSize / 16;
     while (i < nBlocks)
     {
         // Init the state (AES input)
-        memcpy(state, dataIn + offsetDataIn, AES::BLOCKSIZE);
+        memcpy(QWTOBUF(state), dataIn + offsetData, AES::BLOCKSIZE);
 
         // Cipher state
-        decipherBlock(state, ksch, this->Nr);
+        decipherBlock(QWTOBUF(state), ksch, this->Nr);
 
-        memcpy(dataOut + offsetDataIn, state, AES::BLOCKSIZE);
+        memcpy(dataOut + offsetData, QWTOCBUF(state), AES::BLOCKSIZE);
 
         ++i;
-        offsetDataIn += AES::BLOCKSIZE;
+        offsetData += AES::BLOCKSIZE;
     }
 
     return true;
@@ -72,73 +72,63 @@ bool AES::ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
 bool AES::cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
-    byte_t state[AES::BLOCKSIZE];
-    byte_t nonceBlock[AES::BLOCKSIZE];
+    qword_t state;
     qword_t nonce;
 
-    nonce = byteArrayToQword(this->iv, AES::BLOCKSIZE);
+    qwordCopy(this->iv, nonce);
 
     // Save init state to store at end of message
-    byte_t nonceBuffer[AES::BLOCKSIZE];
-    qwordToByteArray(nonce, nonceBuffer);
-    memcpy(nonceBlock, nonceBuffer, AES::BLOCKSIZE);
+    memcpy(dataOut + dataSize, QWTOCBUF(nonce), AES::BLOCKSIZE);
 
-    unsigned int offsetDataIn = 0;
+    unsigned int offsetData = 0;
     unsigned int i = 0;
     const unsigned int nBlocks = dataSize / 16;
     while (i < nBlocks)
     {
         // Init the state (AES input)
-        memcpy(state, dataIn + offsetDataIn, AES::BLOCKSIZE);
-        qword_t txtXorNonce = byteArrayToQword(state, AES::BLOCKSIZE);
-        txtXorNonce ^= byteArrayToQword(nonceBlock, AES::BLOCKSIZE);
-        qwordToByteArray(txtXorNonce, state);
+        memcpy(QWTOBUF(state), dataIn + offsetData, AES::BLOCKSIZE);
+
+        qwordXor(state, nonce);
 
         // Cipher state
-        cipherBlock(state, ksch, this->Nr);
+        cipherBlock(QWTOBUF(nonce), ksch, this->Nr);
 
-        memcpy(dataOut + offsetDataIn, state, AES::BLOCKSIZE);
-        memcpy(nonceBlock, state, AES::BLOCKSIZE);
+        memcpy(dataOut + offsetData, QWTOCBUF(nonce), AES::BLOCKSIZE);
 
         ++i;
-        offsetDataIn += AES::BLOCKSIZE;
+        offsetData += AES::BLOCKSIZE;
     }
 
-    memcpy(dataOut + dataSize, nonceBuffer, AES::BLOCKSIZE);
     return true;
 }
 
 bool AES::cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
-    byte_t state[AES::BLOCKSIZE];
-    byte_t nonceBlock[AES::BLOCKSIZE];
+    qword_t state;
+    qword_t nonce;
 
-    qword_t nonce = byteArrayToQword(dataIn + dataSize - AES::BLOCKSIZE, AES::BLOCKSIZE);
+    qwordCopy(dataIn + (dataSize - AES::BLOCKSIZE), nonce);
 
-    qwordToByteArray(nonce, nonceBlock);
-
-    unsigned int offsetDataIn = 0;
+    unsigned int offsetData = 0;
     unsigned int i = 0;
     const unsigned int nBlocks = dataSize / 16 - 1; // Dont forget IV block
     while (i < nBlocks)
     {
         // Init the state (AES input)
-        memcpy(state, dataIn + offsetDataIn, AES::BLOCKSIZE);
+        memcpy(QWTOBUF(state), dataIn + offsetData, AES::BLOCKSIZE);
 
         // Cipher state
-        decipherBlock(state, ksch, this->Nr);
+        decipherBlock(QWTOBUF(state), ksch, this->Nr);
 
-        qword_t txtXorNonce = byteArrayToQword(state, AES::BLOCKSIZE);
-        txtXorNonce ^= byteArrayToQword(nonceBlock, AES::BLOCKSIZE);
-        qwordToByteArray(txtXorNonce, state);
+        qwordXor(nonce, state);
 
-        memcpy(dataOut + offsetDataIn, state, AES::BLOCKSIZE);
+        memcpy(dataOut + offsetData, QWTOCBUF(state), AES::BLOCKSIZE);
 
-        memcpy(nonceBlock, dataIn + offsetDataIn, AES::BLOCKSIZE);
+        memcpy(QWTOBUF(nonce), dataIn + offsetData, AES::BLOCKSIZE);
 
         ++i;
-        offsetDataIn += AES::BLOCKSIZE;
+        offsetData += AES::BLOCKSIZE;
     }
 
     return true;
@@ -150,16 +140,15 @@ bool AES::cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
 bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
-    byte_t state[AES::BLOCKSIZE];
+    qword_t state;
     qword_t counter;
 
-    counter = byteArrayToQword(this->iv, this->keySize);
+    qwordCopy(this->iv, counter);
 
     // Save init state to store at end of message
-    byte_t counterBuffer[AES::BLOCKSIZE];
-    qwordToByteArray(counter, counterBuffer);
+    memcpy(dataOut + dataSize, QWTOCBUF(counter), AES::BLOCKSIZE);
 
-    unsigned int offsetDataIn = 0;
+    unsigned int offsetData = 0;
     unsigned int i = 0;
     unsigned int nBlocks = dataSize / 16;
     unsigned int lastBlock = dataSize % 16;
@@ -173,40 +162,38 @@ bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     while (i < nBlocks)
     {
         // Init the state (AES input)
-        qwordToByteArray(counter, state);
+        qwordCopy(counter, state);
 
         // Update counter
         incCounter(counter);
 
         // Cipher state
-        cipherBlock(state, ksch, this->Nr);
+        cipherBlock(QWTOBUF(state), ksch, this->Nr);
 
-        // XOR block_out + block_message and store in data_out
-        qword_t stateBlock = byteArrayToQword(state, blockSize);
-        qword_t plainBlock = byteArrayToQword(dataIn + offsetDataIn, blockSize);
-        qword_t cipherBlock = stateBlock ^ plainBlock;
-        qwordToByteArray(cipherBlock, state);
-        memcpy(dataOut + offsetDataIn, state + (AES::BLOCKSIZE - blockSize), blockSize);
+        qword_t plainBlock;
+        memcpy(QWTOBUF(plainBlock), dataIn + offsetData, blockSize);
+        qwordXor(plainBlock, state);
+
+        memcpy(dataOut + offsetData, QWTOCBUF(state), blockSize);
 
         ++i;
         if (i == nBlocks - 1 && lastBlock != 0)
             blockSize = lastBlock;
-        offsetDataIn += AES::BLOCKSIZE;
+        offsetData += AES::BLOCKSIZE;
     }
 
-    memcpy(dataOut + dataSize, counterBuffer, AES::BLOCKSIZE);
     return true;
 }
 
 bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     const word_t* ksch = this->keySchedule.keys;
-    byte_t state[AES::BLOCKSIZE];
+    qword_t state;
     qword_t counter;
 
-    counter = byteArrayToQword(dataIn + dataSize - AES::BLOCKSIZE, AES::BLOCKSIZE);
+    qwordCopy(dataIn + (dataSize - AES::BLOCKSIZE), counter);
 
-    unsigned int offsetDataIn = 0;
+    unsigned int offsetData = 0;
     unsigned int i = 0;
     unsigned int nBlocks = dataSize / 16 - 1;
     unsigned int lastBlock = dataSize % 16;
@@ -220,25 +207,24 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     while (i < nBlocks)
     {
         // Init the state (AES input)
-        qwordToByteArray(counter, state);
+        qwordCopy(counter, state);
 
         // Update counter
         incCounter(counter);
 
         // Cipher state
-        cipherBlock(state, ksch, this->Nr);
+        cipherBlock(QWTOBUF(state), ksch, this->Nr);
 
-        // XOR block_out + block_message and store in data_out
-        qword_t stateBlock = byteArrayToQword(state, blockSize);
-        qword_t cipherBlock = byteArrayToQword(dataIn + offsetDataIn, blockSize);
-        qword_t plainBlock = stateBlock ^ cipherBlock;
-        qwordToByteArray(plainBlock, state);
-        memcpy(dataOut + offsetDataIn, state + (AES::BLOCKSIZE - blockSize), blockSize);
+        qword_t cipherBlock;
+        memcpy(QWTOBUF(cipherBlock), dataIn + offsetData, blockSize);
+        qwordXor(cipherBlock, state);
+
+        memcpy(dataOut + offsetData, QWTOCBUF(state), blockSize);
 
         ++i;
         if (i == nBlocks - 1 && lastBlock != 0)
             blockSize = lastBlock;
-        offsetDataIn += AES::BLOCKSIZE;
+        offsetData += AES::BLOCKSIZE;
     }
 
     return true;

@@ -186,7 +186,7 @@ std::string AES::getInfos()
     buffer += " / Key: ";
     buffer += bytesToHexString(this->key, this->keySize);
     buffer += " / iv: ";
-    buffer += bytesToHexString(this->iv, this->keySize);
+    buffer += bytesToHexString(this->iv, AES::BLOCKSIZE);
 
     return buffer;
 }

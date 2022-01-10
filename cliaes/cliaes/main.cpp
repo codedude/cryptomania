@@ -204,10 +204,8 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
 
     if (vm.count("iv")) {
         args.iv = vm["iv"].as<std::string>();
-        int keyBitsLen = (int)args.iv.size() * 4; // 1 char = 4 bits in hex
-        int expectedSize = keySizeError ? 0 : (int)args.size;
-        if (keyBitsLen != expectedSize) {
-            std::cout << "iv should be " << expectedSize / 4 << " chars long " << std::endl;
+        if (args.iv.size() != 32) {
+            std::cout << "iv should be 32 chars long (16 bytes/128 bits)" << std::endl;
             gotError = true;
         }
     }
@@ -227,7 +225,7 @@ bool getArgs(int argc, char** argv, Args& args)
     desc.add_options()
         ("help,h", "produce help message then exit")
         ("key,k", po::value<std::string>(), "secret key in hexadecimal")
-        ("iv,n", po::value<std::string>(), "iv or nonce in hexadecimal")
+        ("iv,n", po::value<std::string>(), "iv/nonce/counter in hexadecimal (16 bytes = 32 hex chars)")
         ("list,l", "list supported algorithms then exit")
         ("encrypt,e", "encrypt input file (default)")
         ("decrypt,d", "decrypt input file")

@@ -25,18 +25,12 @@ DEP_H=\
     $(SRC_DIR)\libaes.hpp\
     $(SRC_DIR)\aes_cipher.hpp
 
-
-#Boost
-BOOST_DIR=C:\Program^ Files\boost\boost_1_78_0
-
 INCLUDE_PATH=\
     $(INCLUDE_PATH)\
     /I"$(UTILITY_DIR)"\
-    /I"$(LIBAES_DIR)"\
-    /I"$(BOOST_DIR)"
+    /I"$(LIBAES_DIR)"
 
-LIBS=\
-    /libpath:"$(BOOST_DIR)"\stage\lib
+LIBS=
 
 #Targets
 all: check_dirs $(TARGET_BIN)
