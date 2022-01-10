@@ -82,7 +82,6 @@
 #include <windows.h>
 
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
-#define DISABLE_NEWLINE_AUTO_RETURN  0x0008
 
 static void _activateVirtualTerminal()
 {
@@ -90,7 +89,6 @@ static void _activateVirtualTerminal()
     DWORD consoleMode;
     GetConsoleMode(handleOut, &consoleMode);
     consoleMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    consoleMode |= DISABLE_NEWLINE_AUTO_RETURN;
     SetConsoleMode(handleOut, consoleMode);
 }
 #endif
