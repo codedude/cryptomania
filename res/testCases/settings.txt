@@ -1,9 +1,7 @@
-# homemade testCases (with padding)
 Iv/counter: 000102030405060708090a0b0c0d0e0f
+
 Key128: 000102030405060708090a0b0c0d0e0f
 Key192: 000102030405060708090a0b0c0d0e0f08090a0b0c0d0e0f
 Key256: 000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f
 
-
-#Nist test cases (no padding)
-Source : https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf
+With padding
