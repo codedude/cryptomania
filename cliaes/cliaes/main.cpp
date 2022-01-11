@@ -18,6 +18,7 @@ struct Args
     std::string key;
     std::string iv;
     int generate;
+    bool verbose;
     bool printList;
     bool encrypt;
     AES::KEY_SIZE size;
@@ -35,6 +36,10 @@ int main(int argc, char** argv)
     Args args;
     if (!getArgs(argc, argv, args))
         return -1;
+
+    if (!args.verbose) {
+        TRACE_STOP();
+    }
 
     if (args.printList) {
         std::cout << AES::AES::getSupportedList() << std::endl;
@@ -122,6 +127,13 @@ int main(int argc, char** argv)
 
 static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
 {
+    if (vm.count("verbose")) {
+        args.verbose = true;
+    }
+    else {
+        args.verbose = false;
+    }
+
     if (vm.count("help")) {
         return false;
     }
@@ -143,6 +155,7 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
             args.generate = std::stoi(n);
         }
         catch (const std::exception& e) {
+            (void)e;
             std::cout << "Invalid bytes number, must be in range [1;8092]" << std::endl;
             return false;
         }
@@ -270,7 +283,8 @@ bool getArgs(int argc, char** argv, Args& args)
         ("mode,m", po::value<std::string>(), "operation mode (ecb, cbc, ctr)")
         ("size,s", po::value<std::string>(), "key size (128, 192, 256)")
         ("padding,p", po::value<std::string>(), "padding (none, zeros, pkcs5, pkcs7 = default)")
-        ("generate,g", po::value<std::string>(), "generate X random bytes in hexadecimal");
+        ("generate,g", po::value<std::string>(), "generate X random bytes in hexadecimal")
+        ("verbose,v", "verbose mode (default = false)");
 
     po::variables_map vm;
     try
