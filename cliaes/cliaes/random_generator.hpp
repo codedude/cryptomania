@@ -1,36 +1,35 @@
 #ifndef CLIAES_RANDOM_GENERATOR_HPP
 #define CLIAES_RANDOM_GENERATOR_HPP
 
-#include <boost/multiprecision/cpp_int.hpp>
-#include <boost/random.hpp>
+#include <boost/random/random_device.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
+
+#include <vector>
 
 #include <libaes/types.hpp>
 
 namespace RNG
 {
-class ByteGenerator
-{
-    typedef boost::random::independent_bits_engine<boost::random::mt19937, 8, boost::multiprecision::cpp_int> gen8b;
 
+class RandomGenerator {
 public:
-    ByteGenerator(int seed = 0) : generator(gen8b(seed)) {}
-    ~ByteGenerator() = default;
+    RandomGenerator() : rd(), dis8() {}
+    ~RandomGenerator() {}
 
-    byte_t rand()
-    {
-        return (byte_t)generator();
+    std::uint8_t randUInt8() {
+        return this->dis8(this->rd);
     }
 
-    void genBytes(byte_t* buffer, int numberOfBytes)
-    {
-        for (int i = 0; i < numberOfBytes; ++i)
-        {
-            buffer[i] = this->rand();
+    void randUInt8Vector(std::vector<std::uint8_t>::iterator begin,
+        std::vector<std::uint8_t>::iterator end) {
+        for (auto it = begin; it != end; ++it) {
+            *it = this->randUInt8();
         }
     }
 
 private:
-    gen8b generator;
+    boost::random_device rd;
+    boost::random::uniform_int_distribution<std::uint8_t> dis8;
 };
 
 } // namespace RNG

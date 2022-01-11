@@ -1,11 +1,15 @@
 #include <iostream>
 #include <string>
+#include <vector>
+#include <exception>
+
 #include <boost/program_options.hpp>
 
 #include <utility/logs.hpp>
 #include <cliaes/loadData.hpp>
 #include <cliaes/random_generator.hpp>
 #include <libaes/libaes.hpp>
+#include <libaes/types_helper.hpp>
 
 struct Args
 {
@@ -13,6 +17,7 @@ struct Args
     std::string out;
     std::string key;
     std::string iv;
+    int generate;
     bool printList;
     bool encrypt;
     AES::KEY_SIZE size;
@@ -33,6 +38,16 @@ int main(int argc, char** argv)
 
     if (args.printList) {
         std::cout << AES::AES::getSupportedList() << std::endl;
+        return 0;
+    }
+
+    if (args.generate > 0) {
+        std::vector<std::uint8_t> vecBytes(args.generate);
+        RNG::RandomGenerator rg;
+        rg.randUInt8Vector(vecBytes.begin(), vecBytes.end());
+        std::string hexString = bytesToHexString(vecBytes.data(), args.generate);
+        std::cout << args.generate << " random bytes:" << std::endl
+            << hexString << std::endl;
         return 0;
     }
 
@@ -121,6 +136,27 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
 
     bool gotError = false;
     bool keySizeError = false;
+
+    if (vm.count("generate")) {
+        std::string n = vm["generate"].as<std::string>();
+        try {
+            args.generate = std::stoi(n);
+        }
+        catch (const std::exception& e) {
+            std::cout << "Invalid bytes number, must be in range [1;8092]" << std::endl;
+            return false;
+        }
+        if (args.generate < 1 || args.generate > 8092) {
+            std::cout << "Number of bytes generated must be in range [1;8092]" << std::endl;
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+    else {
+        args.generate = 0;
+    }
 
     if (vm.count("encrypt") && vm.count("decrypt")) {
         std::cout << "Both encrypt and decrypt are set, choose one !" << std::endl;
@@ -233,7 +269,8 @@ bool getArgs(int argc, char** argv, Args& args)
         ("out,o", po::value<std::string>(), "output file (default = X.[de|en]crypted)")
         ("mode,m", po::value<std::string>(), "operation mode (ecb, cbc, ctr)")
         ("size,s", po::value<std::string>(), "key size (128, 192, 256)")
-        ("padding,p", po::value<std::string>(), "padding (none, zeros, pkcs5, pkcs7 = default)");
+        ("padding,p", po::value<std::string>(), "padding (none, zeros, pkcs5, pkcs7 = default)")
+        ("generate,g", po::value<std::string>(), "generate X random bytes in hexadecimal");
 
     po::variables_map vm;
     try

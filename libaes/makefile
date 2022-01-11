@@ -44,6 +44,7 @@ $(TARGET_BIN): $(OBJ)
     @if not exist $(BIN_INCLUDE) mkdir $(BIN_INCLUDE)
     @copy /v /y $(SRC_DIR)\libaes.hpp $(BIN_INCLUDE)\libaes.hpp
     @copy /v /y $(SRC_DIR)\types.hpp $(BIN_INCLUDE)\types.hpp
+    @copy /v /y $(SRC_DIR)\types_helper.hpp $(BIN_INCLUDE)\types_helper.hpp
     @echo $(TARGET) - Done!
 
 {$(SRC_DIR)}.cpp{$(GEN_DIR)}.obj::
