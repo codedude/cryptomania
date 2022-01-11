@@ -36,5 +36,6 @@ check_dirs:
 do_test:
     @cd test
     @Powershell.exe -File testSuite.ps1
+    @Powershell.exe -File testNist.ps1
 
 #============================< END OF FILE >===================================

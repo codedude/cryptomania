@@ -53,7 +53,8 @@ public:
     AES(const AES&& other) = delete;
     AES& operator=(const AES&& other) = delete;
 
-    bool initialize(KEY_SIZE pKeySize, MODE pMode, const byte_t* pKey, const byte_t* pIv);
+    bool initialize(KEY_SIZE pKeySize, MODE pMode, bool padding,
+        const byte_t* pKey, const byte_t* pIv);
 
     std::string getInfos();
 

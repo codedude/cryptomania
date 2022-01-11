@@ -77,9 +77,6 @@ bool AES::cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
 
     qwordCopy(this->iv, nonce);
 
-    // Save init state to store at end of message
-    memcpy(dataOut + dataSize, QWTOCBUF(nonce), AES::BLOCKSIZE);
-
     unsigned int offsetData = 0;
     unsigned int i = 0;
     const unsigned int nBlocks = dataSize / 16;
@@ -108,11 +105,11 @@ bool AES::cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     qword_t state;
     qword_t nonce;
 
-    qwordCopy(dataIn + (dataSize - AES::BLOCKSIZE), nonce);
+    qwordCopy(this->iv, nonce);
 
     unsigned int offsetData = 0;
     unsigned int i = 0;
-    const unsigned int nBlocks = dataSize / 16 - 1; // Dont forget IV block
+    const unsigned int nBlocks = dataSize / 16;
     while (i < nBlocks)
     {
         // Init the state (AES input)
@@ -144,9 +141,6 @@ bool AES::ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     qword_t counter;
 
     qwordCopy(this->iv, counter);
-
-    // Save init state to store at end of message
-    memcpy(dataOut + dataSize, QWTOCBUF(counter), AES::BLOCKSIZE);
 
     unsigned int offsetData = 0;
     unsigned int i = 0;
@@ -191,11 +185,11 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     qword_t state;
     qword_t counter;
 
-    qwordCopy(dataIn + (dataSize - AES::BLOCKSIZE), counter);
+    qwordCopy(this->iv, counter);
 
     unsigned int offsetData = 0;
     unsigned int i = 0;
-    unsigned int nBlocks = dataSize / 16 - 1;
+    unsigned int nBlocks = dataSize / 16;
     unsigned int lastBlock = dataSize % 16;
     unsigned int blockSize = AES::BLOCKSIZE;
     if (lastBlock != 0) {

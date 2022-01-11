@@ -18,6 +18,7 @@ struct Args
     std::string key;
     std::string iv;
     int generate;
+    bool padding;
     bool verbose;
     bool printList;
     bool encrypt;
@@ -41,11 +42,6 @@ int main(int argc, char** argv)
         TRACE_STOP();
     }
 
-    if (args.printList) {
-        std::cout << AES::AES::getSupportedList() << std::endl;
-        return 0;
-    }
-
     if (args.generate > 0) {
         std::vector<std::uint8_t> vecBytes(args.generate);
         RNG::RandomGenerator rg;
@@ -54,6 +50,18 @@ int main(int argc, char** argv)
         std::cout << args.generate << " random bytes:" << std::endl
             << hexString << std::endl;
         return 0;
+    }
+
+    if (args.printList) {
+        std::cout << AES::AES::getSupportedList() << std::endl;
+        return 0;
+    }
+
+    unsigned int dataInSize = getFileSize(args.in);
+    if (!args.padding && (args.mode == AES::MODE::ECB || args.mode == AES::MODE::CBC)
+        && dataInSize % AES::AES::BLOCKSIZE != 0) {
+        std::cout << "Padding is disabled, input data must be a multiple of 16 bytes " << std::endl;
+        return -1;
     }
 
     // Get key and iv
@@ -65,7 +73,7 @@ int main(int argc, char** argv)
         return -1;
 
     AES::AES aes;
-    if (!aes.initialize(args.size, args.mode, key, iv))
+    if (!aes.initialize(args.size, args.mode, args.padding, key, iv))
     {
         std::cout << "Can't init aes " << std::endl;
         return -1;
@@ -75,7 +83,6 @@ int main(int argc, char** argv)
 
     byte_t* dataIn = nullptr;
     byte_t* dataOut = nullptr;
-    unsigned int dataInSize = getFileSize(args.in);
     unsigned int paddingSize;
     unsigned int revPaddingSize;
     unsigned int dataOutSize = 0;
@@ -136,6 +143,13 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
 
     if (vm.count("help")) {
         return false;
+    }
+
+    if (vm.count("nopad")) {
+        args.padding = false;
+    }
+    else {
+        args.padding = true;
     }
 
     if (vm.count("list")) {
@@ -274,7 +288,7 @@ bool getArgs(int argc, char** argv, Args& args)
     desc.add_options()
         ("help,h", "produce help message then exit")
         ("key,k", po::value<std::string>(), "secret key in hexadecimal")
-        ("iv,n", po::value<std::string>(), "iv/nonce/counter in hexadecimal (16 bytes = 32 hex chars)")
+        ("iv,n", po::value<std::string>(), "iv/counter in hexadecimal (16 bytes = 32 hex chars)")
         ("list,l", "list supported algorithms then exit")
         ("encrypt,e", "encrypt input file (default)")
         ("decrypt,d", "decrypt input file")
@@ -282,8 +296,8 @@ bool getArgs(int argc, char** argv, Args& args)
         ("out,o", po::value<std::string>(), "output file (default = X.[de|en]crypted)")
         ("mode,m", po::value<std::string>(), "operation mode (ecb, cbc, ctr)")
         ("size,s", po::value<std::string>(), "key size (128, 192, 256)")
-        ("padding,p", po::value<std::string>(), "padding (none, zeros, pkcs5, pkcs7 = default)")
-        ("generate,g", po::value<std::string>(), "generate X random bytes in hexadecimal")
+        ("generate,g", po::value<std::string>(), "generate X random bytes in hexadecimal then exit")
+        ("nopad", "disable block padding (default is pkcs7). Input size must be a multiple of 16 bytes")
         ("verbose,v", "verbose mode (default = false)");
 
     po::variables_map vm;

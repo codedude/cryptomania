@@ -8,7 +8,8 @@
 namespace AES
 {
 
-bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, const byte_t* pKey, const byte_t* pIv)
+bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, bool padding,
+    const byte_t* pKey, const byte_t* pIv)
 {
     if (pKey == nullptr)
         return false;
@@ -47,6 +48,9 @@ bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, const byte_t* pKey, const by
     default:
         this->padding = PADDING::NONE;
         break;
+    }
+    if (!padding) {
+        this->padding = PADDING::NONE;
     }
 
     this->keySchedule.len = this->Nb * (this->Nr + 1);
@@ -229,6 +233,7 @@ unsigned int AES::getHeaderSize()
     default:
         break;
     }
+    n = 0; // TODO
     return n;
 }
 

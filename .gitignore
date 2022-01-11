@@ -15,7 +15,7 @@ nmake.cmd
 
 *.encrypted
 *.decrypted
-test/dummy
+test/dummy*
 
 #Linux/Mac
 *.o

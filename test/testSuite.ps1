@@ -2,7 +2,8 @@
 
 . .\testUtils.ps1
 
-$testPath = ".\dummy"
+$testPath = ".\dummyTestSuite"
+$testCasesPath = "$testCasesBasePath\testCases"
 
 function Invoke-Test {
     param (
@@ -11,15 +12,15 @@ function Invoke-Test {
         [string]$Mode
     )
 
-    $key = $keys[$KeySize]
-    $iv = $ivs[$KeySize]
+    $key = $defaultKeys[$KeySize]
+    $iv = $defaultIv
     $basePlain = "$testCasesPath\$FileIn"
     $baseEncrypted = "$testCasesPath\$FileIn.$KeySize.$Mode"
     $fileEncrypted = "$testPath\$FileIn.$KeySize.$Mode"
     $fileDecrypted = "$testPath\$FileIn"
 
-    Invoke-Cliaes -KeySize $KeySize -Mode $Mode -Key $key -Iv $iv -FileIn $basePlain -FileOut $fileEncrypted -Decrypt $false | Out-Null
-    Invoke-Cliaes -KeySize $KeySize -Mode $Mode -Key $key -Iv $iv -FileIn $fileEncrypted -FileOut $fileDecrypted -Decrypt $true | Out-Null
+    Invoke-Cliaes -KeySize $KeySize -Mode $Mode -Key $key -Iv $iv -FileIn $basePlain -FileOut $fileEncrypted -Decrypt $false -NoPadding $false | Out-Null
+    Invoke-Cliaes -KeySize $KeySize -Mode $Mode -Key $key -Iv $iv -FileIn $fileEncrypted -FileOut $fileDecrypted -Decrypt $true -NoPadding $false | Out-Null
 
     # Test decrypted file
     $diffPlain = Compare-Object (Get-Content $basePlain) (Get-Content $fileDecrypted)
@@ -43,7 +44,7 @@ Write-Host "Running tests suite..."
 New-Item -Force -ItemType "directory" -Path $testPath | Out-Null
 
 # Execute all test combination
-foreach ($file in $files) {
+foreach ($file in $defaultFiles) {
     foreach ($keySize in $keySizes) {
         foreach ($mode in $modes) {
             $ret = Invoke-Test -FileIn $file -KeySize $keySize -Mode $mode

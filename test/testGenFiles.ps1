@@ -2,6 +2,11 @@
 
 . .\testUtils.ps1
 
+$testCasesPath = "$testCasesBasePath\testCases"
+
+$files = "lt1block", "eq1block", "gt1block", "3block"
+$iv = "000102030405060708090a0b0c0d0e0f"
+
 function New-Test-Files {
     param (
         [string]$FileIn,
@@ -9,15 +14,15 @@ function New-Test-Files {
         [string]$Mode
     )
 
-    $key = $keys[$KeySize]
-    $iv = $ivs[$KeySize]
+    $key = $defaultKeys[$KeySize]
+    $iv = $defaultIv
     $FileIn = "$testCasesPath\$FileIn"
     $fileOut = "$FileIn.$KeySize.$Mode"
 
-    Invoke-Cliaes -KeySize $KeySize -Mode $Mode -Key $key -Iv $iv -FileIn $FileIn -FileOut $fileOut -Decrypt $false | Out-Null
+    Invoke-Cliaes -KeySize $KeySize -Mode $Mode -Key $key -Iv $iv -FileIn $FileIn -FileOut $fileOut -Decrypt $false -NoPadding $false | Out-Null
 }
 
-foreach ($file in $files) {
+foreach ($file in $defaultFiles) {
     foreach ($keySize in $keySizes) {
         foreach ($mode in $modes) {
             New-Test-Files -FileIn $file -KeySize $keySize -Mode $mode
