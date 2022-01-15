@@ -8,15 +8,20 @@
 namespace AES
 {
 
-bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, bool padding,
-    const byte_t* pKey, const byte_t* pIv)
+bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, bool pPadding,
+    const byte_t* pKey, const byte_t* pIv, int pIvSize, const byte_t* pAad, int pAadSize,
+    const byte_t* pTag)
 {
     if (pKey == nullptr)
         return false;
 
     this->key = pKey;
     this->iv = pIv;
+    this->ivSize = (unsigned int)pIvSize;
+    this->aad = pAad;
+    this->aadSize = (unsigned int)pAadSize;
     this->mode = pMode;
+    this->tag = pTag;
 
     switch (pKeySize)
     {
@@ -45,11 +50,15 @@ bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, bool padding,
         this->padding = PADDING::PKCS7;
         break;
 
+    case MODE::GCM: // Only used to allocate enough space for block S
+        this->padding = PADDING::ZEROS;
+        break;
+
     default:
         this->padding = PADDING::NONE;
         break;
     }
-    if (!padding) {
+    if (!pPadding) {
         this->padding = PADDING::NONE;
     }
 
@@ -70,8 +79,19 @@ bool AES::initialize(KEY_SIZE pKeySize, MODE pMode, bool padding,
 void AES::applyPadding(byte_t* data, unsigned int& dataSize)
 {
     unsigned int paddingSize = AES::getPaddingSize(dataSize);
-    memset(data + dataSize, paddingSize, paddingSize);
-    dataSize += paddingSize;
+
+    if (this->padding == PADDING::PKCS7) {
+        memset(data + dataSize, paddingSize, paddingSize);
+        dataSize += paddingSize;
+    }
+    if (this->padding == PADDING::ZEROS) {
+        memset(data + dataSize, 0, paddingSize);
+        if (this->mode != MODE::GCM) {
+            dataSize += paddingSize;
+        }
+        // Dont inc dataSize in gcm, used for block S only to have a preallocate
+        // m x 128 buffer, but the padding is not used in cipher part
+    }
 }
 
 bool AES::cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
@@ -99,6 +119,10 @@ bool AES::cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
     else if (this->mode == MODE::CTR)
     {
         result = this->ctr_encrypt(dataIn, dataOut, dataSize);
+    }
+    else if (this->mode == MODE::GCM)
+    {
+        result = this->gcm_encrypt(dataIn, dataOut, dataSize);
     }
     else // Should never happen
     {
@@ -129,6 +153,10 @@ bool AES::decipher(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
     {
         result = this->ctr_decrypt(dataIn, dataOut, dataSize);
     }
+    else if (this->mode == MODE::GCM)
+    {
+        result = this->gcm_decrypt(dataIn, dataOut, dataSize);
+    }
     else // Should never happen
     {
         result = false;
@@ -141,7 +169,7 @@ std::string AES::getSupportedList()
 {
     std::string buffer;
     buffer += "Supported algorithm : ";
-    buffer += "aes-[128|192|256]-[ecb|cbc|ctr]";
+    buffer += "aes-[128|192|256]-[ecb|cbc|ctr|gcm]";
     return buffer;
 }
 
@@ -190,7 +218,7 @@ std::string AES::getInfos()
     buffer += " / Key: ";
     buffer += bytesToHexString(this->key, this->keySize);
     buffer += " / iv: ";
-    buffer += bytesToHexString(this->iv, AES::BLOCKSIZE);
+    buffer += bytesToHexString(this->iv, this->ivSize);
 
     return buffer;
 }
@@ -199,6 +227,13 @@ unsigned int AES::getPaddingSize(unsigned int dataSize)
 {
     if (!this->hasInit || this->padding == PADDING::NONE)
         return 0;
+
+    if (this->mode == MODE::GCM) {
+        if (dataSize % AES::BLOCKSIZE == 0)
+            return 0;
+        else
+            return AES::BLOCKSIZE - (dataSize % AES::BLOCKSIZE);
+    }
 
     if (dataSize % AES::BLOCKSIZE == 0)
         return AES::BLOCKSIZE;
@@ -209,6 +244,10 @@ unsigned int AES::getRevPaddingSize(const byte_t* dataIn, unsigned int dataSize)
 {
     if (this->padding == PADDING::NONE)
         return 0;
+
+    if (this->mode == MODE::GCM) {
+        return 0;
+    }
     byte_t paddingSize = dataIn[dataSize - 1];
     return paddingSize;
 }

@@ -23,9 +23,22 @@ word_t bytesToWord(byte_t b1, byte_t b2, byte_t b3, byte_t b4)
     return (b1 << 24) | (b2 << 16) | (b3 << 8) | b4;
 }
 
+void copyUIntToBuf(unsigned int i, byte_t* buffer)
+{
+    buffer[3] = (byte_t)((i >> 0) & 0xff);
+    buffer[2] = (byte_t)((i >> 8) & 0xff);
+    buffer[1] = (byte_t)((i >> 16) & 0xff);
+    buffer[0] = (byte_t)((i >> 24) & 0xff);
+}
+
+void qwordZero(qword_t& q)
+{
+    memset(QWTOBUF(q), 0, sizeof(qword_t));
+}
+
 void qwordCopy(const qword_t& from, qword_t& to)
 {
-    memcpy(QWTOBUF(to), QWTOBUF(from), sizeof(qword_t));
+    memcpy(QWTOBUF(to), QWTOCBUF(from), sizeof(qword_t));
 }
 
 void qwordCopy(const byte_t* from, qword_t& to)
@@ -35,7 +48,7 @@ void qwordCopy(const byte_t* from, qword_t& to)
 
 void qwordCopy(const qword_t& from, byte_t* to)
 {
-    memcpy(to, QWTOBUF(from), sizeof(qword_t));
+    memcpy(to, QWTOCBUF(from), sizeof(qword_t));
 }
 
 void qwordCopy(const byte_t* from, byte_t* to)
@@ -50,17 +63,40 @@ void qwordXor(const qword_t& q1, qword_t& q2)
         q2.b[i] ^= q1.b[i];
 }
 
-// https://github.com/openssl/openssl/blob/master/crypto/modes/ctr128.c
-void qwordInc(qword_t& q1)
+void qwordShiftRight(qword_t& q1)
 {
-    int n = 16;
+    byte_t carry = 0;
+    byte_t tmp;
+    for (int i = 0; i < 16; ++i) {
+        tmp = q1.b[i];
+        q1.b[i] = (tmp >> 1) | carry;
+        carry = (tmp & 0b01) << 7;
+    }
+}
+
+void qwordShiftLeft(qword_t& q1)
+{
+    byte_t carry = 0;
+    byte_t tmp;
+    for (int i = 15; i != 0; --i) {
+        tmp = q1.b[i];
+        q1.b[i] = (tmp << 1) | carry;
+        carry = (tmp & 0b10000000) >> 7;
+    }
+}
+
+// https://github.com/openssl/openssl/blob/master/crypto/modes/ctr128.c
+void qwordInc(qword_t& q1, int nBytes)
+{
+    int i = 15;
     word_t carry = 1;
     do {
-        --n;
-        carry += q1.b[n];
-        q1.b[n] = (byte_t)carry;
+        --nBytes;
+        carry += q1.b[i];
+        q1.b[i] = (byte_t)carry;
         carry >>= 8;
-    } while (carry && n);
+        --i;
+    } while (nBytes);
 }
 
 

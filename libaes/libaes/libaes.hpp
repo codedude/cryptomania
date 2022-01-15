@@ -27,6 +27,17 @@ enum class KEY_SIZE {
     S256 = 256
 };
 
+enum class GCM_IV_SIZE {
+    S128 = 128,
+    S120 = 120,
+    S112 = 112,
+    S104 = 104,
+    S96 = 96,
+    S64 = 64,
+    S32 = 32
+};
+
+
 
 /**
  * All size are expressed in bytes
@@ -44,6 +55,7 @@ public:
         this->hasInit = false;
         this->key = nullptr;
         this->iv = nullptr;
+        this->aad = nullptr;
     }
 
     ~AES() = default;
@@ -53,8 +65,9 @@ public:
     AES(const AES&& other) = delete;
     AES& operator=(const AES&& other) = delete;
 
-    bool initialize(KEY_SIZE pKeySize, MODE pMode, bool padding,
-        const byte_t* pKey, const byte_t* pIv);
+    bool initialize(KEY_SIZE pKeySize, MODE pMode, bool pPadding,
+        const byte_t* pKey, const byte_t* pIv, int pIvSize, const byte_t* pAad, int pAadSize,
+        const byte_t* pTag);
 
     std::string getInfos();
 
@@ -79,10 +92,12 @@ public:
     bool ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 
     bool ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 
     void setVerbose(bool activate)
     {
@@ -116,10 +131,14 @@ private:
     bool hasInit; // Is state ready to cipher/decipher
 
     int keySize;
+    unsigned int ivSize;
+    unsigned int aadSize;
     PADDING padding;
     MODE mode;
     const byte_t* key;
     const byte_t* iv;
+    const byte_t* aad;
+    const byte_t* tag;
 
     /*
     * PKCS#7 padding

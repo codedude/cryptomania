@@ -17,6 +17,8 @@ struct Args
     std::string out;
     std::string key;
     std::string iv;
+    std::string tag;
+    std::string aad;
     int generate;
     bool padding;
     bool verbose;
@@ -67,13 +69,22 @@ int main(int argc, char** argv)
     // Get key and iv
     byte_t* key = nullptr;
     byte_t* iv = nullptr;
+    byte_t* aad = nullptr;
+    byte_t* tag = nullptr;
     if ((key = hexStrToBytes(args.key)) == nullptr)
         return -1;
     if ((iv = hexStrToBytes(args.iv)) == nullptr)
         return -1;
+    if ((tag = hexStrToBytes(args.tag)) == nullptr)
+        return -1;
+    if (args.aad.size() != 0) {
+        if ((aad = hexStrToBytes(args.aad)) == nullptr)
+            return -1;
+    }
 
     AES::AES aes;
-    if (!aes.initialize(args.size, args.mode, args.padding, key, iv))
+    if (!aes.initialize(args.size, args.mode, args.padding,
+        key, iv, args.iv.size() / 2, aad, args.aad.size() / 2, tag))
     {
         std::cout << "Can't init aes " << std::endl;
         return -1;
@@ -125,6 +136,7 @@ int main(int argc, char** argv)
     delete[] dataIn;
     delete[] dataOut;
     delete[] iv;
+    delete[] aad;
     delete[] key;
 
     TRACE_STOP();
@@ -185,6 +197,40 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
         args.generate = 0;
     }
 
+    if (vm.count("mode"))
+    {
+        auto mode = vm["mode"].as<std::string>();
+        if (mode == "ecb")
+            args.mode = AES::MODE::ECB;
+        else if (mode == "cbc")
+            args.mode = AES::MODE::CBC;
+        else if (mode == "ctr")
+            args.mode = AES::MODE::CTR;
+        else if (mode == "gcm")
+            args.mode = AES::MODE::GCM;
+        else {
+            std::cout << "Mode is invalid" << std::endl;
+            gotError = true;
+        }
+    }
+    else {
+        std::cout << "Mode is missing" << std::endl;
+        gotError = true;
+    }
+
+    if (args.mode == AES::MODE::GCM) {
+        if (!vm.count("aad")) {
+            std::cout << "aad is required for gcm block mode" << std::endl;
+            gotError = true;
+        }
+        else {
+            args.aad = vm["aad"].as<std::string>();
+        }
+    }
+    else {
+        args.aad = "";
+    }
+
     if (vm.count("encrypt") && vm.count("decrypt")) {
         std::cout << "Both encrypt and decrypt are set, choose one !" << std::endl;
         gotError = true;
@@ -230,26 +276,6 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
         gotError = true;
     }
 
-    if (vm.count("mode"))
-    {
-        auto mode = vm["mode"].as<std::string>();
-        if (mode == "ecb")
-            args.mode = AES::MODE::ECB;
-        else if (mode == "cbc")
-            args.mode = AES::MODE::CBC;
-        else if (mode == "ctr")
-            args.mode = AES::MODE::CTR;
-        else if (mode == "gcm")
-            args.mode = AES::MODE::GCM;
-        else {
-            std::cout << "Mode is invalid" << std::endl;
-            gotError = true;
-        }
-    }
-    else {
-        std::cout << "Mode is missing" << std::endl;
-        gotError = true;
-    }
 
     if (vm.count("key")) { // Need args.size first
         args.key = vm["key"].as<std::string>();
@@ -267,14 +293,19 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
 
     if (vm.count("iv")) {
         args.iv = vm["iv"].as<std::string>();
-        if (args.iv.size() != 32) {
+        if (args.mode != AES::MODE::GCM && args.iv.size() != 32) {
             std::cout << "iv should be 32 chars long (16 bytes/128 bits)" << std::endl;
             gotError = true;
         }
+        // TODO check for gcm
     }
     else {
         std::cout << "iv is missing" << std::endl;
         gotError = true;
+    }
+
+    if (vm.count("tag")) {
+        args.tag = vm["tag"].as<std::string>();
     }
 
     return !gotError;
@@ -288,7 +319,9 @@ bool getArgs(int argc, char** argv, Args& args)
     desc.add_options()
         ("help,h", "produce help message then exit")
         ("key,k", po::value<std::string>(), "secret key in hexadecimal")
-        ("iv,n", po::value<std::string>(), "iv/counter in hexadecimal (16 bytes = 32 hex chars)")
+        ("iv,n", po::value<std::string>(), "iv/counter in hexadecimal")
+        ("aad,a", po::value<std::string>(), "aad for gcm only in hexadecimal")
+        ("tag,t", po::value<std::string>(), "authentification tag")
         ("list,l", "list supported algorithms then exit")
         ("encrypt,e", "encrypt input file (default)")
         ("decrypt,d", "decrypt input file")

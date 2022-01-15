@@ -10,7 +10,7 @@ namespace AES
 **/
 static inline void incCounter(qword_t& counter)
 {
-    qwordInc(counter);
+    qwordInc(counter, 16);
 }
 
 /*****************************
@@ -209,9 +209,9 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
         // Cipher state
         cipherBlock(QWTOBUF(state), ksch, this->Nr);
 
-        qword_t cipherBlock;
-        memcpy(QWTOBUF(cipherBlock), dataIn + offsetData, blockSize);
-        qwordXor(cipherBlock, state);
+        qword_t cBlock;
+        memcpy(QWTOBUF(cBlock), dataIn + offsetData, blockSize);
+        qwordXor(cBlock, state);
 
         memcpy(dataOut + offsetData, QWTOCBUF(state), blockSize);
 
@@ -220,6 +220,236 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
             blockSize = lastBlock;
         offsetData += AES::BLOCKSIZE;
     }
+
+    return true;
+}
+
+// R = 0x10000111
+// https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
+void gmul(const qword_t& x, const qword_t& y, qword_t& z)
+{
+#define BITON(x, b) ((x) & (0x01 << (b)))
+
+    qword_t r = QWORD_STATIC_ZERO;
+    r.b[15] = 0b10000111;
+
+    qword_t v;
+    word_t carry;
+    qwordZero(z);
+    qwordCopy(y, v);
+
+    for (int byte = 15; byte != 0; --byte) {
+        byte_t xi = x.b[byte];
+        for (int bit = 0; bit < 8; ++bit) {
+            if (BITON(xi, bit)) {
+                qwordXor(v, z);
+            }
+            carry = BITON(v.b[0], 7);
+            qwordShiftLeft(v);
+            if (carry) {
+                qwordXor(r, v);
+            }
+        }
+    }
+}
+
+// ghash with m = 2
+// H = block
+// X = 256 bit, m = 2 x block
+// J = output block
+void ghash2Blocks(const qword_t& H, const qword_t X[], qword_t& J)
+{
+    qword_t Y = QWORD_STATIC_ZERO;
+
+    // i = 1
+    qwordXor(X[0], Y);
+    gmul(Y, H, J);
+
+    qwordCopy(J, Y);
+    // i = 2
+    qwordXor(X[1], Y);
+    gmul(Y, H, J);
+}
+
+void ghash(const qword_t& H, const qword_t& Saad, const qword_t& Ssizes,
+    const byte_t* dataOut, unsigned int dataSize, qword_t& Sout)
+{
+    qword_t Y = QWORD_STATIC_ZERO;
+
+    // aad
+    qwordXor(Saad, Y);
+    gmul(Y, H, Sout);
+    qwordCopy(Sout, Y);
+
+    // C
+    for (unsigned int i = 0; i < dataSize; i += AES::BLOCKSIZE)
+    {
+        qword_t Scipher = QWORD_STATIC_ZERO;
+        qwordCopy(dataOut + i, Scipher);
+
+        qwordXor(Scipher, Y);
+        gmul(Y, H, Sout);
+        qwordCopy(Sout, Y);
+    }
+
+    // sizes
+    qwordXor(Ssizes, Y);
+    gmul(Y, H, Sout);
+}
+
+void inc32(qword_t& J)
+{
+    qwordInc(J, 4);
+}
+
+void gctr(const word_t* ksch, int Nr, const qword_t& icb,
+    const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
+{
+    // dataIn = X
+    // dataOut = Y
+    unsigned int offsetData = 0;
+    unsigned int nBlocks = dataSize / 16;
+    unsigned int lastBlock = dataSize % 16;
+    unsigned int blockSize = AES::BLOCKSIZE;
+    if (lastBlock != 0) {
+        nBlocks++;
+        if (nBlocks == 1) {
+            blockSize = lastBlock;
+        }
+    }
+
+    qword_t CB; // counter block
+    qword_t cipherCB;
+    qword_t plainBlock; // cipher block out
+    qwordCopy(icb, CB);
+    for (unsigned int i = 0; i < nBlocks; ++i)
+    {
+        qwordCopy(CB, cipherCB);
+        cipherBlock(QWTOBUF(cipherCB), ksch, Nr);
+
+        memcpy(QWTOBUF(plainBlock), dataIn + offsetData, blockSize);
+        qwordXor(plainBlock, cipherCB);
+
+        memcpy(dataOut + offsetData, QWTOBUF(cipherCB), blockSize);
+
+        inc32(CB);
+        if (i == nBlocks - 1 && lastBlock != 0)
+            blockSize = lastBlock;
+        offsetData += AES::BLOCKSIZE;
+    }
+}
+
+/*****************************
+ * CTR
+ ****************************/
+bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
+{
+    const word_t* ksch = this->keySchedule.keys;
+
+    // block H = qword_t de 0
+    qword_t H = QWORD_STATIC_ZERO;
+    cipherBlock(QWTOBUF(H), ksch, this->Nr);
+
+    // block J = iv avec concat...
+    qword_t J = QWORD_STATIC_ZERO;
+    memcpy(QWTOBUF(J), this->iv, this->ivSize);
+    if (this->ivSize == 12) {
+        J.b[15] |= 0x01;
+    }
+    else {
+        // TODO a revoir ne marche pas
+        qword_t ghashIn[2];
+        word_t tmp = (word_t)this->ivSize;
+        qwordCopy(this->iv, ghashIn[0]);
+        memset(QWTOBUF(ghashIn[1]), 0, 16);
+        memcpy(QWTOBUF(ghashIn[1]) + 12, &tmp, 4);
+        ghash2Blocks(H, ghashIn, J);
+    }
+    qword_t J0;
+    qwordCopy(J, J0);
+
+    // block C = GCTR(Key, inc32(J), Plain) = cipher ici
+    inc32(J);
+    gctr(ksch, this->Nr, J, dataIn, dataOut, dataSize);
+
+    // u = taille
+    qword_t Sout = QWORD_STATIC_ZERO;
+    qword_t Saad = QWORD_STATIC_ZERO;
+    qword_t Ssizes = QWORD_STATIC_ZERO;
+
+    // unsigned int u = dataSize % AES::BLOCKSIZE;
+    // unsigned int v = this->aadSize % AES::BLOCKSIZE;
+
+    // copy aad to the right, left filled with 0
+    memcpy(QWTOBUF(Saad) + (AES::BLOCKSIZE - this->aadSize), this->aad, this->aadSize);
+
+    // 0^32 || aad size || 0^32 || cipher size
+    copyUIntToBuf(this->aadSize, QWTOBUF(Ssizes) + 4);
+    copyUIntToBuf(dataSize, QWTOBUF(Ssizes) + 12);
+
+    // block S = GHASH(H, block concat/padding)
+    ghash(H, Saad, Ssizes, dataOut, dataSize + getPaddingSize(dataSize), Sout);
+    // block size t = MSB(GCTR(Key, J, S)) = auth tag
+    qword_t T = QWORD_STATIC_ZERO;
+    gctr(ksch, this->Nr, J0, QWTOCBUF(Sout), QWTOBUF(T), AES::BLOCKSIZE);
+    // return (C, T)
+    std::cout << "Auth tag :" << bytesToHexString(QWTOCBUF(T), 16) << std::endl;
+
+    return true;
+}
+
+bool AES::gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
+{
+    const word_t* ksch = this->keySchedule.keys;
+
+    // block H = qword_t de 0
+    qword_t H = QWORD_STATIC_ZERO;
+    cipherBlock(QWTOBUF(H), ksch, this->Nr);
+
+    // block J = iv avec concat...
+    qword_t J = QWORD_STATIC_ZERO;
+    memcpy(QWTOBUF(J), this->iv, this->ivSize);
+    if (this->ivSize == 12) {
+        J.b[15] |= 0x01;
+    }
+    else {
+        // TODO a revoir ne marche pas
+        qword_t ghashIn[2];
+        word_t tmp = (word_t)this->ivSize;
+        qwordCopy(this->iv, ghashIn[0]);
+        memset(QWTOBUF(ghashIn[1]), 0, 16);
+        memcpy(QWTOBUF(ghashIn[1]) + 12, &tmp, 4);
+        ghash2Blocks(H, ghashIn, J);
+    }
+    qword_t J0;
+    qwordCopy(J, J0);
+
+    // block C = GCTR(Key, inc32(J), Plain) = cipher ici
+    inc32(J);
+    gctr(ksch, this->Nr, J, dataIn, dataOut, dataSize);
+
+    // u = taille
+    qword_t Sout = QWORD_STATIC_ZERO;
+    qword_t Saad = QWORD_STATIC_ZERO;
+    qword_t Ssizes = QWORD_STATIC_ZERO;
+
+    // unsigned int u = dataSize % AES::BLOCKSIZE;
+    // unsigned int v = this->aadSize % AES::BLOCKSIZE;
+
+    // copy aad to the right, left filled with 0
+    memcpy(QWTOBUF(Saad) + (AES::BLOCKSIZE - this->aadSize), this->aad, this->aadSize);
+
+    // 0^32 || aad size || 0^32 || cipher size
+    copyUIntToBuf(this->aadSize, QWTOBUF(Ssizes) + 4);
+    copyUIntToBuf(dataSize, QWTOBUF(Ssizes) + 12);
+
+    // block S = GHASH(H, block concat/padding)
+    ghash(H, Saad, Ssizes, dataIn, dataSize + getPaddingSize(dataSize), Sout);
+    // block size t = MSB(GCTR(Key, J, S)) = auth tag
+    qword_t T = QWORD_STATIC_ZERO;
+    gctr(ksch, this->Nr, J0, QWTOCBUF(Sout), QWTOBUF(T), AES::BLOCKSIZE);
+    // return (C, T)
+    std::cout << "Auth tag :" << bytesToHexString(QWTOCBUF(T), 16) << std::endl;
 
     return true;
 }
