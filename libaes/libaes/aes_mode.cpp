@@ -226,26 +226,26 @@ bool AES::ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
 
 // R = 0x10000111
 // https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-38d.pdf
-void gmul(const qword_t& x, const qword_t& y, qword_t& z)
+void gmul(const qword_t& x, qword_t& y)
 {
 #define BITON(x, b) ((x) & (0x01 << (b)))
 
-    qword_t r = QWORD_STATIC_ZERO;
-    r.b[15] = 0b10000111;
-
+    int carry;
     qword_t v;
-    word_t carry;
-    qwordZero(z);
-    qwordCopy(y, v);
+    qword_t r = QWORD_STATIC_ZERO;
 
-    for (int byte = 15; byte != 0; --byte) {
+    r.b[0] = 0b11100001; // x128 + x7 + x2 + x + 1
+    qwordCopy(y, v);
+    qwordZero(y);
+
+    for (int byte = 0; byte < 16; ++byte) {
         byte_t xi = x.b[byte];
-        for (int bit = 0; bit < 8; ++bit) {
+        for (int bit = 7; bit >= 0; --bit) {
             if (BITON(xi, bit)) {
-                qwordXor(v, z);
+                qwordXor(v, y);
             }
-            carry = BITON(v.b[0], 7);
-            qwordShiftLeft(v);
+            carry = BITON(v.b[15], 0);
+            qwordShiftRight(v);
             if (carry) {
                 qwordXor(r, v);
             }
@@ -263,12 +263,13 @@ void ghash2Blocks(const qword_t& H, const qword_t X[], qword_t& J)
 
     // i = 1
     qwordXor(X[0], Y);
-    gmul(Y, H, J);
+    gmul(H, Y);
 
-    qwordCopy(J, Y);
     // i = 2
     qwordXor(X[1], Y);
-    gmul(Y, H, J);
+    gmul(H, Y);
+
+    qwordCopy(Y, J);
 }
 
 void ghash(const qword_t& H, const qword_t& Saad, const qword_t& Ssizes,
@@ -276,25 +277,25 @@ void ghash(const qword_t& H, const qword_t& Saad, const qword_t& Ssizes,
 {
     qword_t Y = QWORD_STATIC_ZERO;
 
-    // aad
+    // X1 = aad
     qwordXor(Saad, Y);
-    gmul(Y, H, Sout);
-    qwordCopy(Sout, Y);
+    gmul(H, Y);
 
-    // C
+    // Xi = C
     for (unsigned int i = 0; i < dataSize; i += AES::BLOCKSIZE)
     {
         qword_t Scipher = QWORD_STATIC_ZERO;
         qwordCopy(dataOut + i, Scipher);
 
         qwordXor(Scipher, Y);
-        gmul(Y, H, Sout);
-        qwordCopy(Sout, Y);
+        gmul(H, Y);
     }
 
-    // sizes
+    // Xm = sizes
     qwordXor(Ssizes, Y);
-    gmul(Y, H, Sout);
+    gmul(H, Y);
+
+    qwordCopy(Y, Sout);
 }
 
 void inc32(qword_t& J)
@@ -384,9 +385,8 @@ bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     memcpy(QWTOBUF(Saad) + (AES::BLOCKSIZE - this->aadSize), this->aad, this->aadSize);
 
     // 0^32 || aad size || 0^32 || cipher size
-    copyUIntToBuf(this->aadSize, QWTOBUF(Ssizes) + 4);
-    copyUIntToBuf(dataSize, QWTOBUF(Ssizes) + 12);
-
+    copyUIntToBuf(this->aadSize * 8, QWTOBUF(Ssizes) + 4);
+    copyUIntToBuf(dataSize * 8, QWTOBUF(Ssizes) + 12);
     // block S = GHASH(H, block concat/padding)
     ghash(H, Saad, Ssizes, dataOut, dataSize + getPaddingSize(dataSize), Sout);
     // block size t = MSB(GCTR(Key, J, S)) = auth tag

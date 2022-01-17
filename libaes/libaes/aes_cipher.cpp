@@ -134,8 +134,8 @@ static void invMixColumns(byte_t* state)
                 byte_t a = MAT[CELL(c, r)];
                 byte_t b = col[c];
                 byte_t p = 0;
-                bool carry;
-                while (a && b)
+                int carry;
+                for (int i = 0; i < 8; ++i) // Constant time
                 {
                     if (b & 0x01)
                         p ^= a;

@@ -78,7 +78,7 @@ void qwordShiftLeft(qword_t& q1)
 {
     byte_t carry = 0;
     byte_t tmp;
-    for (int i = 15; i != 0; --i) {
+    for (int i = 15; i >= 0; --i) {
         tmp = q1.b[i];
         q1.b[i] = (tmp << 1) | carry;
         carry = (tmp & 0b10000000) >> 7;

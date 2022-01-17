@@ -84,7 +84,7 @@ int main(int argc, char** argv)
 
     AES::AES aes;
     if (!aes.initialize(args.size, args.mode, args.padding,
-        key, iv, args.iv.size() / 2, aad, args.aad.size() / 2, tag))
+        key, iv, (int)args.iv.size() / 2, aad, (int)args.aad.size() / 2, tag))
     {
         std::cout << "Can't init aes " << std::endl;
         return -1;
@@ -218,17 +218,9 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
         gotError = true;
     }
 
-    if (args.mode == AES::MODE::GCM) {
-        if (!vm.count("aad")) {
-            std::cout << "aad is required for gcm block mode" << std::endl;
-            gotError = true;
-        }
-        else {
-            args.aad = vm["aad"].as<std::string>();
-        }
-    }
-    else {
-        args.aad = "";
+    args.aad = ""; // Can be 0 size long
+    if (args.mode == AES::MODE::GCM && vm.count("aad")) {
+        args.aad = vm["aad"].as<std::string>();
     }
 
     if (vm.count("encrypt") && vm.count("decrypt")) {

@@ -99,7 +99,7 @@ bool AES::cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
     if (!hasInit)
         return false;
 
-    if (dataIn == nullptr || dataOut == nullptr || dataSize == 0)
+    if (dataIn == nullptr || dataOut == nullptr)
         return false;
 
     if (this->padding != PADDING::NONE)
