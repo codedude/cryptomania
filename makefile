@@ -37,5 +37,6 @@ do_test:
     @cd test
     @Powershell.exe -File testSuite.ps1
     @Powershell.exe -File testNist.ps1
+    @Powershell.exe -File testNistGcm.ps1
 
 #============================< END OF FILE >===================================

@@ -27,17 +27,6 @@ enum class KEY_SIZE {
     S256 = 256
 };
 
-enum class GCM_IV_SIZE {
-    S128 = 128,
-    S120 = 120,
-    S112 = 112,
-    S104 = 104,
-    S96 = 96,
-    S64 = 64,
-    S32 = 32
-};
-
-
 
 /**
  * All size are expressed in bytes
@@ -54,55 +43,48 @@ public:
         this->verbose = false;
         this->hasInit = false;
         this->key = nullptr;
-        this->iv = nullptr;
-        this->aad = nullptr;
     }
 
-    ~AES() = default;
+    ~AES()
+    {
+        delete[] key;
+        delete[] iv;
+        delete[] aad;
+    }
 
     // No need to be copied or moved
     AES(const AES& other) = delete;
     AES(const AES&& other) = delete;
     AES& operator=(const AES&& other) = delete;
 
-    bool initialize(KEY_SIZE pKeySize, MODE pMode, bool pPadding,
-        const byte_t* pKey, const byte_t* pIv, int pIvSize, const byte_t* pAad, int pAadSize,
-        const byte_t* pTag);
-
-    std::string getInfos();
-
-    static std::string getSupportedList();
-    static int getKeySizeFromEnum(KEY_SIZE value);
-    static std::string getModeFromEnum(MODE value);
-
-    unsigned int getPaddingSize(unsigned int dataSize);
-
-    /*
-    * Get the size needed by the encrypted buffer, since mode of operation add some value at the end
-    * (i.e. IV, counter, AAD, AT...)
-    * In addition to a padding, in ECB and CBC only
-    */
-    unsigned int getFileSizeNeeded(unsigned int dataSize);
-    unsigned int getHeaderSize();
-    unsigned int getRevPaddingSize(const byte_t* dataIn, unsigned int dataSize);
-
+    bool initialize(KEY_SIZE pKeySize, MODE pMode, bool pPadding, const byte_t* pKey);
     bool cipher(byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool decipher(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 
-    bool ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-    bool cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-    bool ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-    bool gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-
-    bool ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-    bool cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-    bool ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
-    bool gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool setIv(const byte_t* pIv, int pIvSize);
+    bool setAad(const byte_t* pAad, int pAadSize);
 
     void setVerbose(bool activate)
     {
         verbose = activate;
     }
+    std::string getInfos();
+
+    // Helpers to print infos or construct buffer
+    static std::string getSupportedList();
+    static int getKeySizeFromEnum(KEY_SIZE value);
+    static std::string getModeFromEnum(MODE value);
+    static std::string getPaddingFromEnum(PADDING value);
+    static bool isGcmIvSizeValid(unsigned int pIvSize);
+    static unsigned int getPaddingSize(unsigned int pDataSize, PADDING pPadding);
+    static unsigned int getRevPaddingSize(const byte_t* pDataIn, unsigned int pDataSize,
+        PADDING pPadding, MODE pMode);
+    static unsigned int getBlockRoundedSize(unsigned int pDataSize);
+    static unsigned int getPlainInBufferSize(unsigned int pDataSize, PADDING pPadding, MODE pMode);
+    static unsigned int getCipherOutBufferSize(unsigned int pDataSize, PADDING pPadding,
+        MODE pMode);
+    static unsigned int getCipherInBufferSize(unsigned int pDataSize, PADDING pPadding, MODE pMode);
+    static unsigned int getPlainOutBufferSize(unsigned int pDataSize, PADDING pPadding, MODE pMode);
 
 private:
     struct KeySchedule
@@ -135,15 +117,21 @@ private:
     unsigned int aadSize;
     PADDING padding;
     MODE mode;
-    const byte_t* key;
-    const byte_t* iv;
-    const byte_t* aad;
-    const byte_t* tag;
+    byte_t* key;
+    byte_t* iv;
+    byte_t* aad;
 
-    /*
-    * PKCS#7 padding
-    */
     void applyPadding(byte_t* data, unsigned int& dataSize);
+
+    bool ecb_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+
+    bool ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool ctr_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
 };
 
 } // namespace AES

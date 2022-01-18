@@ -17,8 +17,8 @@ struct Args
     std::string out;
     std::string key;
     std::string iv;
-    std::string tag;
     std::string aad;
+    std::string tag;
     int generate;
     bool padding;
     bool verbose;
@@ -70,12 +70,9 @@ int main(int argc, char** argv)
     byte_t* key = nullptr;
     byte_t* iv = nullptr;
     byte_t* aad = nullptr;
-    byte_t* tag = nullptr;
     if ((key = hexStrToBytes(args.key)) == nullptr)
         return -1;
     if ((iv = hexStrToBytes(args.iv)) == nullptr)
-        return -1;
-    if ((tag = hexStrToBytes(args.tag)) == nullptr)
         return -1;
     if (args.aad.size() != 0) {
         if ((aad = hexStrToBytes(args.aad)) == nullptr)
@@ -83,61 +80,91 @@ int main(int argc, char** argv)
     }
 
     AES::AES aes;
-    if (!aes.initialize(args.size, args.mode, args.padding,
-        key, iv, (int)args.iv.size() / 2, aad, (int)args.aad.size() / 2, tag))
+    if (!aes.initialize(args.size, args.mode, args.padding, key))
     {
         std::cout << "Can't init aes " << std::endl;
         return -1;
     }
+    if (!aes.setIv(iv, (int)args.iv.size() / 2)) {
+        std::cout << "Can't set iv " << std::endl;
+        return -1;
+    }
+    if (!aes.setAad(aad, (int)args.aad.size() / 2)) {
+        std::cout << "Can't set aad " << std::endl;
+        return -1;
+    }
+
+    delete[] aad;
+    delete[] iv;
+    delete[] key;
 
     TRACE_INFO(aes.getInfos());
+    TRACE_INFO("Input file in: ", args.in);
+    TRACE_INFO("Output file in: ", args.out);
 
+    AES::PADDING pad = args.padding ? AES::PADDING::PKCS7 : AES::PADDING::NONE;
     byte_t* dataIn = nullptr;
     byte_t* dataOut = nullptr;
-    unsigned int paddingSize;
-    unsigned int revPaddingSize;
-    unsigned int dataOutSize = 0;
+    unsigned int inBufSize;
+    unsigned int outBufSize;
 
     if (args.encrypt) {
-        dataOutSize = aes.getFileSizeNeeded(dataInSize);
-        paddingSize = aes.getPaddingSize(dataInSize);
+        inBufSize = AES::AES::getPlainInBufferSize(dataInSize, pad, args.mode);
     }
     else {
-        dataOutSize = dataInSize - aes.getHeaderSize();
-        paddingSize = 0;
+        inBufSize = AES::AES::getCipherInBufferSize(dataInSize, pad, args.mode);
     }
 
     // Read input file
-    if ((dataIn = loadDataFromFile(args.in, dataInSize + paddingSize)) == nullptr)
+    if ((dataIn = loadDataFromFile(args.in, inBufSize)) == nullptr)
     {
         std::cout << "Can't load file " << args.in << std::endl;
         return -1;
     }
 
-    dataOut = new byte_t[dataOutSize];
+    if (args.encrypt) {
+        outBufSize = AES::AES::getCipherOutBufferSize(dataInSize, pad, args.mode);
+    }
+    else {
+        outBufSize = AES::AES::getPlainOutBufferSize(dataInSize, pad, args.mode);
+    }
+
+    dataOut = new byte_t[outBufSize];
     if (args.encrypt) {
         aes.cipher(dataIn, dataOut, dataInSize);
-        revPaddingSize = 0;
     }
     else {
         aes.decipher(dataIn, dataOut, dataInSize);
-        dataInSize -= aes.getHeaderSize();
-        revPaddingSize = aes.getRevPaddingSize(dataOut, dataOutSize);
+        // Remove padding
+
+        outBufSize -= AES::AES::getRevPaddingSize(dataOut, dataInSize, pad, args.mode);
     }
 
-    TRACE_INFO("Input file in: ", args.in);
-    TRACE_INFO("Output file in: ", args.out);
-    if (!writeEncryptedDataToFile(args.out, dataOut, dataOutSize - revPaddingSize))
+    if (!writeEncryptedDataToFile(args.out, dataOut, outBufSize))
     {
         std::cout << "Can't write file " << args.out << std::endl;
         return -1;
     }
 
+    // Print error if asked for a specific tag check
+    if (args.mode == AES::MODE::GCM && args.tag.size() > 0) {
+        byte_t* tag = nullptr;
+        if ((tag = hexStrToBytes(args.tag)) == nullptr)
+            return -1;
+        const byte_t* bufferToTest;
+        if (args.encrypt)
+            bufferToTest = dataOut + outBufSize - 16;
+        else
+            bufferToTest = dataIn + dataInSize - 16;
+        if (memcmp(tag, bufferToTest, 16) != 0) {
+            TRACE_ERROR("Expected tag: ", args.tag);
+        }
+
+        delete[] tag;
+    }
+
     delete[] dataIn;
     delete[] dataOut;
-    delete[] iv;
-    delete[] aad;
-    delete[] key;
 
     TRACE_STOP();
 
@@ -219,8 +246,17 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
     }
 
     args.aad = ""; // Can be 0 size long
-    if (args.mode == AES::MODE::GCM && vm.count("aad")) {
-        args.aad = vm["aad"].as<std::string>();
+    args.tag = ""; // Only for gcm testing purpose
+    if (args.mode == AES::MODE::GCM) {
+        if (vm.count("aad"))
+            args.aad = vm["aad"].as<std::string>();
+        if (vm.count("tag")) {
+            args.tag = vm["tag"].as<std::string>();
+            if (args.tag.size() / 2 != AES::AES::BLOCKSIZE) {
+                std::cout << "Authentification tag must be 16 bytes long" << std::endl;
+                gotError = true;
+            }
+        }
     }
 
     if (vm.count("encrypt") && vm.count("decrypt")) {
@@ -289,15 +325,17 @@ static bool checkArgs(boost::program_options::variables_map& vm, Args& args)
             std::cout << "iv should be 32 chars long (16 bytes/128 bits)" << std::endl;
             gotError = true;
         }
-        // TODO check for gcm
+        if (args.mode == AES::MODE::GCM) {
+            if (!AES::AES::isGcmIvSizeValid((unsigned int)args.iv.size() / 2)) {
+                std::cout << "Supported iv length in gcm (in bits): 1 <= i <= 2^64 -1 mod 8"
+                    << std::endl;
+                gotError = true;
+            }
+        }
     }
     else {
         std::cout << "iv is missing" << std::endl;
         gotError = true;
-    }
-
-    if (vm.count("tag")) {
-        args.tag = vm["tag"].as<std::string>();
     }
 
     return !gotError;
@@ -313,7 +351,6 @@ bool getArgs(int argc, char** argv, Args& args)
         ("key,k", po::value<std::string>(), "secret key in hexadecimal")
         ("iv,n", po::value<std::string>(), "iv/counter in hexadecimal")
         ("aad,a", po::value<std::string>(), "aad for gcm only in hexadecimal")
-        ("tag,t", po::value<std::string>(), "authentification tag")
         ("list,l", "list supported algorithms then exit")
         ("encrypt,e", "encrypt input file (default)")
         ("decrypt,d", "decrypt input file")
@@ -323,7 +360,8 @@ bool getArgs(int argc, char** argv, Args& args)
         ("size,s", po::value<std::string>(), "key size (128, 192, 256)")
         ("generate,g", po::value<std::string>(), "generate X random bytes in hexadecimal then exit")
         ("nopad", "disable block padding (default is pkcs7). Input size must be a multiple of 16 bytes")
-        ("verbose,v", "verbose mode (default = false)");
+        ("verbose,v", "verbose mode (default = false)")
+        ("tag,t", po::value<std::string>(), "authentification tag (for testing purpose only)");
 
     po::variables_map vm;
     try

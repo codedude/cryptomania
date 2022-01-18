@@ -22,6 +22,8 @@ function Invoke-Cliaes {
         [string]$FileOut,
         [string]$Iv,
         [string]$Key,
+        [string]$Aad = "",
+        [string]$Tag = "",
         [boolean]$Decrypt,
         [boolean]$NoPadding
     )
@@ -33,6 +35,13 @@ function Invoke-Cliaes {
     if ($NoPadding) {
         $params += "--nopad"
     }
+    if ($Aad) {
+        $params += "-a $Aad"
+    }
+    if ($Tag) {
+        $params += "-t $Tag"
+    }
+
     $process = Start-Process -PassThru -FilePath $cliExePath -ArgumentList $params
     $process.WaitForExit()
     if ($process.ExitCode -ne 0) {
