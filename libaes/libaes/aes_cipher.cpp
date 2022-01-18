@@ -163,8 +163,7 @@ static inline word_t subWord(word_t n)
 
 static void addRoundKey(byte_t* state, const word_t* keySchedule, int round)
 {
-    for (int i = 0; i < 4; ++i)
-    {
+    for (int i = 0; i < 4; ++i) {
         word_t tmp = bytesToWord(state[CELL(0, i)], state[CELL(1, i)], state[CELL(2, i)], state[CELL(3, i)]);
         tmp = tmp ^ keySchedule[4 * round + i];
         state[CELL(0, i)] = tmp >> 24;
@@ -179,20 +178,16 @@ void keyExpansion(const byte_t* key, word_t* ksch, int kschSize, int Nk)
 #define ROTWORD(x) (((x) << 8) | ((x) >> 24))
 
     int i;
-    for (i = 0; i < Nk; ++i)
-    {
+    for (i = 0; i < Nk; ++i) {
         ksch[i] = bytesToWord(key[4 * i], key[4 * i + 1], key[4 * i + 2], key[4 * i + 3]);
     }
 
-    for (i = Nk; i < kschSize; ++i)
-    {
+    for (i = Nk; i < kschSize; ++i) {
         word_t tmp = ksch[i - 1];
-        if (i % Nk == 0)
-        {
+        if (i % Nk == 0) {
             tmp = subWord(ROTWORD(tmp)) ^ LOOKUPS::RCON[i / Nk - 1];
         }
-        else if (Nk > 6 && i % Nk == 4)
-        {
+        else if (Nk > 6 && i % Nk == 4) {
             tmp = subWord(tmp);
         }
         ksch[i] = ksch[(i + kschSize - Nk) % kschSize] ^ tmp;
@@ -203,59 +198,30 @@ void keyExpansion(const byte_t* key, word_t* ksch, int kschSize, int Nk)
 
 void cipherBlock(byte_t* state, const word_t* keySchedule, int Nr)
 {
-    // std::cout << "0 - Input: " << bytesToHexString(state, 16) << std::endl;
     addRoundKey(state, keySchedule, 0);
-    // std::cout << "0 - k_sch: " << bytesToHexString(state, 16) << std::endl
-    //     << std::endl;
-
-    for (int round = 1; round < Nr; ++round)
-    {
+    for (int round = 1; round < Nr; ++round) {
         subBytes(state);
-        // std::cout << round << " - sub: " << bytesToHexString(state, 16) << std::endl;
         shiftRows(state);
-        // std::cout << round << " - shi: " << bytesToHexString(state, 16) << std::endl;
         mixColumns(state);
-        // std::cout << round << " - mix: " << bytesToHexString(state, 16) << std::endl;
         addRoundKey(state, keySchedule, round);
-        // std::cout << round << " - sch: " << bytesToHexString(state, 16) << std::endl
-        //           << std::endl;
     }
     subBytes(state);
-    // std::cout << "Last - sub: " << bytesToHexString(state, 16) << std::endl;
     shiftRows(state);
-    // std::cout << "Last - shi: " << bytesToHexString(state, 16) << std::endl;
     addRoundKey(state, keySchedule, Nr);
-    // std::cout << "Last - Output: " << bytesToHexString(state, 16) << std::endl
-    //           << std::endl;
 }
 
 void decipherBlock(byte_t* state, const word_t* keySchedule, int Nr)
 {
-    // std::cout << "0 - Input: " << bytesToHexString(state, 16) << std::endl;
     addRoundKey(state, keySchedule, Nr);
-    // std::cout << "0 - k_sch: " << bytesToHexString(state, 16) << std::endl
-    //   << std::endl;
-
-    for (int round = Nr - 1; round > 0; --round)
-    {
+    for (int round = Nr - 1; round > 0; --round) {
         invShiftRows(state);
-        // std::cout << round << " - shi: " << bytesToHexString(state, 16) << std::endl;
         invSubBytes(state);
-        // std::cout << round << " - sub: " << bytesToHexString(state, 16) << std::endl;
         addRoundKey(state, keySchedule, round);
-        // std::cout << round << " - sch: " << bytesToHexString(state, 16) << std::endl;
         invMixColumns(state);
-        // std::cout << round << " - mix: " << bytesToHexString(state, 16) << std::endl
-        //   << std::endl;
     }
-
     invShiftRows(state);
-    // std::cout << "Last - shi: " << bytesToHexString(state, 16) << std::endl;
     invSubBytes(state);
-    // std::cout << "Last - sub: " << bytesToHexString(state, 16) << std::endl;
     addRoundKey(state, keySchedule, 0);
-    // std::cout << "Last - Output: " << bytesToHexString(state, 16) << std::endl
-    //   << std::endl;
 }
 
 } // namespace AES

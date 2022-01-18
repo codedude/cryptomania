@@ -127,6 +127,7 @@ private:
     bool cbc_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool ctr_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
+    bool gcm_crypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize, bool decrypt);
 
     bool ecb_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);
     bool cbc_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize);

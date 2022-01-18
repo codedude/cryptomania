@@ -329,11 +329,23 @@ void gctr(const word_t* ksch, int Nr, const qword_t& icb,
 }
 
 /*****************************
- * CTR
+ * GCM
  ****************************/
-bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
+bool AES::gcm_crypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize, bool decrypt)
 {
     const word_t* ksch = this->keySchedule.keys;
+
+    // Read the tag
+    qword_t TAG;
+    byte_t* selectCryptBuffer;
+    if (decrypt) {
+        dataSize -= 16;
+        memcpy(QWTOBUF(TAG), dataIn + dataSize, 16);
+        selectCryptBuffer = (byte_t*)dataIn;
+    }
+    else {
+        selectCryptBuffer = (byte_t*)dataOut;
+    }
 
     // block H = qword_t de 0
     qword_t H = QWORD_STATIC_ZERO;
@@ -367,84 +379,40 @@ bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSi
     if (dataSize % AES::BLOCKSIZE != 0)
     {
         int extraZeros = AES::BLOCKSIZE - (dataSize % AES::BLOCKSIZE);
-        memset(dataOut + dataSize, 0, extraZeros);
+        memset(selectCryptBuffer + dataSize, 0, extraZeros);
     }
 
     // block S = GHASH(H, block concat/padding)
     ghash(H, this->aad, this->getBlockRoundedSize(this->aadSize),
-        Ssizes, dataOut, getBlockRoundedSize(dataSize), Sout);
+        Ssizes, selectCryptBuffer, getBlockRoundedSize(dataSize), Sout);
 
     // block size t = MSB(GCTR(Key, J, S)) = auth tag
     qword_t T = QWORD_STATIC_ZERO;
     gctr(ksch, this->Nr, J0, QWTOCBUF(Sout), QWTOBUF(T), AES::BLOCKSIZE);
 
     // return (C, T)
-    memcpy(dataOut + dataSize, QWTOCBUF(T), 16); // Write tag at the end
     TRACE_INFO("=> Authentification tag: ", bytesToHexString(QWTOCBUF(T), 16));
+    if (decrypt) {
+        if (memcmp(QWTOCBUF(TAG), QWTOCBUF(T), 16) != 0) {
+            TRACE_ERROR("Bad authentification tag !");
+            TRACE_ERROR("Tag expected : ", bytesToHexString(QWTOCBUF(TAG), 16));
+            return false;
+        }
+    }
+    else {
+        memcpy(dataOut + dataSize, QWTOCBUF(T), 16); // Write tag at the end
+    }
 
     return true;
+}
+bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
+{
+    return gcm_crypt(dataIn, dataOut, dataSize, false);
 }
 
 bool AES::gcm_decrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
-    const word_t* ksch = this->keySchedule.keys;
-
-    // Read the tag
-    qword_t TAG;
-    dataSize -= 16;
-    memcpy(QWTOBUF(TAG), dataIn + dataSize, 16);
-
-    // block H = qword_t de 0
-    qword_t H = QWORD_STATIC_ZERO;
-    cipherBlock(QWTOBUF(H), ksch, this->Nr);
-
-    // block J = iv avec concat...
-    qword_t J = QWORD_STATIC_ZERO;
-    if (this->ivSize == 12) {
-        memcpy(QWTOBUF(J), this->iv, this->ivSize);
-        J.b[15] |= 0x01;
-    }
-    else {
-        qword_t rightPart = QWORD_STATIC_ZERO;
-        copyUIntToBuf(this->ivSize * 8, QWTOBUF(rightPart) + 12);
-        ghash(H, nullptr, 0, rightPart, this->iv, getBlockRoundedSize(this->ivSize), J);
-    }
-    qword_t J0;
-    qwordCopy(J, J0);
-
-    // block C = GCTR(Key, inc32(J), Plain) = cipher ici
-    inc32(J);
-    gctr(ksch, this->Nr, J, dataIn, dataOut, dataSize);
-
-    qword_t Sout = QWORD_STATIC_ZERO;
-    qword_t Ssizes = QWORD_STATIC_ZERO;
-
-    // 0^32 || aad size || 0^32 || cipher size
-    copyUIntToBuf(this->aadSize * 8, QWTOBUF(Ssizes) + 4);
-    copyUIntToBuf(dataSize * 8, QWTOBUF(Ssizes) + 12);
-
-    // Puts 0 at the end of cipher text for ghash
-    if (dataSize % AES::BLOCKSIZE != 0)
-    {
-        int extraZeros = AES::BLOCKSIZE - (dataSize % AES::BLOCKSIZE);
-        memset((byte_t*)dataIn + dataSize, 0, extraZeros);
-    }
-
-    // block S = GHASH(H, block concat/padding)
-    ghash(H, this->aad, this->getBlockRoundedSize(this->aadSize), Ssizes, dataIn, getBlockRoundedSize(dataSize), Sout);
-
-    // block size t = MSB(GCTR(Key, J, S)) = auth tag
-    qword_t T = QWORD_STATIC_ZERO;
-    gctr(ksch, this->Nr, J0, QWTOCBUF(Sout), QWTOBUF(T), AES::BLOCKSIZE);
-
-    // return (C, T)
-    TRACE_INFO("=> Authentification tag: ", bytesToHexString(QWTOCBUF(T), 16));
-    if (memcmp(QWTOCBUF(TAG), QWTOCBUF(T), 16) != 0) {
-        TRACE_ERROR("Bad authentification tag !");
-        TRACE_ERROR("Tag expected : ", bytesToHexString(QWTOCBUF(TAG), 16));
-        return false;
-    }
-    return true;
+    return gcm_crypt(dataIn, dataOut, dataSize, true);
 }
 
 } // namespace AES
