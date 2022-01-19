@@ -405,6 +405,7 @@ bool AES::gcm_crypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize
 
     return true;
 }
+
 bool AES::gcm_encrypt(const byte_t* dataIn, byte_t* dataOut, unsigned int dataSize)
 {
     return gcm_crypt(dataIn, dataOut, dataSize, false);

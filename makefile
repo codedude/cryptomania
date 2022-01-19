@@ -8,24 +8,24 @@ all: check_dirs libaes cliaes
 
 libaes: check_dirs
     @echo Calling libaes...
-    @$(NMAKE) /F $(LIBAES_DIR)\makefile
+    @$(NMAKE) /nologo /F $(LIBAES_DIR)\makefile
     @echo Libaes has been built!
 
 libaes_clean:
-    @$(NMAKE) /F $(LIBAES_DIR)\makefile clean
+    @$(NMAKE) /nologo /F $(LIBAES_DIR)\makefile clean
 
 cliaes_clean:
-    @$(NMAKE) /F $(CLIAES_DIR)\makefile clean
+    @$(NMAKE) /nologo /F $(CLIAES_DIR)\makefile clean
 
 cliaes: check_dirs libaes
     @echo Calling cliaes...
-    @$(NMAKE) /F $(CLIAES_DIR)\makefile
+    @$(NMAKE) /nologo /F $(CLIAES_DIR)\makefile
     @echo Cliaes has been built!
 
 clean:
     @echo Cleaning...
-    @$(NMAKE) /F $(LIBAES_DIR)\makefile clean
-    @$(NMAKE) /F $(CLIAES_DIR)\makefile clean
+    @$(NMAKE) /nologo /F $(LIBAES_DIR)\makefile clean
+    @$(NMAKE) /nologo /F $(CLIAES_DIR)\makefile clean
 
 re: clean all
 
